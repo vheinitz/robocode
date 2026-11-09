@@ -360,29 +360,20 @@ class MainActivity : AppCompatActivity() {
     // ---------------- Seeds (Port von createPlaygroundProject) ----------------
 
     private fun seedSetup() = listOf(
-        "# Geräte an Pins (läuft einmal)",
-        "led = LED(13)",
-        "taster = TASTER(2)",
-        "poti = AI(0)",
+        "# Onboard-RGB-LED (WS2812) am ESP32-C3",
+        "rgb = RGB(2)",
     ).joinToString("\n")
 
     private fun seedMain() = listOf(
-        "takt = Every(300)",
+        "# Blinken — ohne Taster",
         "while True:",
-        "    if taster:",
-        "        led.v = 1",
-        "    elif poti > 180:",
-        "        led.v = 0",
-        "    elif takt.due:",
-        "        blinke(1)",
-        "    sleep_ms(50)",
+        "    rgb.color(0, 0, 255)   # an (blau)",
+        "    sleep_ms(500)",
+        "    rgb.off()              # aus",
+        "    sleep_ms(500)",
     ).joinToString("\n")
 
     private fun seedLib() = listOf(
-        "# Eigene Funktionen",
-        "def blinke(n):",
-        "    for i in range(n):",
-        "        led.toggle()",
-        "        sleep_ms(100)",
+        "# Eigene Funktionen (hier nichts nötig)",
     ).joinToString("\n")
 }

@@ -201,7 +201,8 @@ class _Readable:
     def __repr__(self):
         return str(self._num())
 
-    __hash__ = object.__hash__  # trotz __eq__ hashbar bleiben
+    def __hash__(self):         # trotz __eq__ hashbar bleiben (MicroPython-sicher;
+        return id(self)         # object.__hash__ gibt es in MicroPython nicht)
 
 
 def _val(x):
