@@ -1,0 +1,11 @@
+node_modules
+dist
+dist-ssr
+*.local
+*.tsbuildinfo
+.DS_Store
+.vite
+
+# Python
+__pycache__/
+*.pyc
