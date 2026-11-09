@@ -539,3 +539,47 @@ def LED(pin, inverted=False, name=None):
 
 TASTER = BTN   # Taster = DI mit Pull-Up + invertiert + entprellt
 MOTOR = Motor  # Motor = Wrapper über zwei Ausgänge (H-Brücke)
+
+
+# ===========================================================================
+# RGB — adressierbare WS2812/NeoPixel-LED (z. B. die Onboard-LED vieler
+# ESP32-C3-Boards, oft an GPIO2 oder GPIO8). Nutzt MicroPythons neopixel-Modul.
+#   rgb = RGB(2)
+#   rgb.color(255, 0, 0)   # rot     (auch rgb.color(poti, 0, 0))
+#   rgb.off()
+# ===========================================================================
+
+class _Rgb:
+    def __init__(self, pin, n=1, name=None):
+        self._pin = pin
+        self._n = n
+        self._name = name or ("RGB@%d" % pin)
+        self._last = (0, 0, 0)
+        if not SIM:
+            from machine import Pin as _P
+            import neopixel
+            self._np = neopixel.NeoPixel(_P(pin), n)
+        else:
+            self._np = None  # am PC nur gemerkt, keine echte LED
+
+    def color(self, r, g, b):
+        self._last = (int(_val(r)) & 255, int(_val(g)) & 255, int(_val(b)) & 255)
+        if not SIM:
+            for i in range(self._n):
+                self._np[i] = self._last
+            self._np.write()
+
+    def off(self):
+        self.color(0, 0, 0)
+
+    @property
+    def v(self):
+        return self._last
+
+    @v.setter
+    def v(self, rgb):       # rgb.v = (255, 0, 0)
+        self.color(rgb[0], rgb[1], rgb[2])
+
+
+def RGB(pin, n=1, name=None):
+    return _Rgb(pin, n, name=name)

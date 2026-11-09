@@ -22,6 +22,7 @@ const SETUP_DEFS: Suggestion[] = [
   { label: '🔆 AO PWM', insert: 'dimmer = AO(5)', kind: 'cmd' },
   // Wrapper/Synonyme (vertraute Begriffe über DI/DO)
   { label: '💡 LED', insert: 'led = LED(13)', kind: 'cmd' },
+  { label: '🌈 RGB', insert: 'rgb = RGB(2)', kind: 'cmd' },
   { label: '🔘 Taster', insert: 'taster = TASTER(2)', kind: 'cmd' },
   { label: '⚙️ Motor', insert: 'motor = MOTOR(6, 7)', kind: 'cmd' },
 ]

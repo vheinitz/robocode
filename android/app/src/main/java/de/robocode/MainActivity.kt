@@ -140,8 +140,8 @@ class MainActivity : AppCompatActivity() {
             "setup" -> listOf(
                 "📥 DI" to "eingang = DI(4)", "📤 DO" to "ausgang = DO(5)",
                 "🎚️ AI" to "poti = AI(0)", "🔆 AO" to "dimmer = AO(5)",
-                "💡 LED" to "led = LED(13)", "🔘 Taster" to "taster = TASTER(2)",
-                "⚙️ Motor" to "motor = MOTOR(6, 7)",
+                "💡 LED" to "led = LED(13)", "🌈 RGB" to "rgb = RGB(2)",
+                "🔘 Taster" to "taster = TASTER(2)", "⚙️ Motor" to "motor = MOTOR(6, 7)",
             )
             else -> buildList {
                 add("🔁 while" to "while True:")
