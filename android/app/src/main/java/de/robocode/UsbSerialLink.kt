@@ -37,15 +37,22 @@ class UsbSerialLink(context: Context) : EspLoader.Io {
 
     fun hasPermission(device: UsbDevice): Boolean = manager.hasPermission(device)
 
-    /** Gerät öffnen (Berechtigung muss vorliegen). true bei Erfolg. */
-    fun open(driver: UsbSerialDriver, baudRate: Int = 115200): Boolean {
+    /**
+     * Gerät öffnen (Berechtigung muss vorliegen). true bei Erfolg.
+     *
+     * [assertControlLines]: DTR/RTS anlegen. Beim Flashen (Board manuell im
+     * Download-Modus) unkritisch. Für den REPL MUSS das false sein — beim
+     * nativen USB des C3/S3 steuern DTR/RTS die Download-Reset-Sequenz, statisch
+     * angelegt ziehen sie den Chip in den Bootloader statt MicroPython laufen zu
+     * lassen.
+     */
+    fun open(driver: UsbSerialDriver, baudRate: Int = 115200, assertControlLines: Boolean = true): Boolean {
         val connection = manager.openDevice(driver.device) ?: return false
         val p = driver.ports.first()
         p.open(connection)
         p.setParameters(baudRate, 8, UsbSerialPort.STOPBITS_1, UsbSerialPort.PARITY_NONE)
-        // DTR/RTS aktiv – beim nativen USB des C3/S3 unkritisch; schadet nicht.
-        try { p.dtr = true } catch (_: Exception) {}
-        try { p.rts = true } catch (_: Exception) {}
+        try { p.dtr = assertControlLines } catch (_: Exception) {}
+        try { p.rts = assertControlLines } catch (_: Exception) {}
         port = p
         return true
     }

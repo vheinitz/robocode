@@ -39,11 +39,18 @@ class MicroPythonRepl(private val link: UsbSerialLink) {
      * Prüfen, ob MicroPython läuft: in den Raw-REPL wechseln und auf dessen
      * Kennung warten. Danach zurück in den normalen REPL.
      */
-    fun isMicroPython(timeoutMs: Int = 2000): Boolean {
-        interrupt()
-        link.writeRaw(byteArrayOf(CTRL_A))
-        val seen = readContains("raw REPL", timeoutMs)
-        link.writeRaw(byteArrayOf(CTRL_B))
+    fun isMicroPython(timeoutMs: Int = 3000): Boolean {
+        drain(300)                                   // Boot-/Restausgabe verwerfen
+        interrupt()                                  // Strg-C x2
+        link.writeRaw("\r\n".toByteArray())
+        drain(150)
+        link.writeRaw(byteArrayOf(CTRL_A))           // Raw-REPL betreten
+        var seen = readContains("raw REPL", timeoutMs)
+        link.writeRaw(byteArrayOf(CTRL_B))           // zurück zum normalen REPL
+        if (!seen) {                                 // Fallback: freundlicher Prompt
+            link.writeRaw("\r\n".toByteArray())
+            seen = readContains(">>>", 1200)
+        }
         drain(150)
         return seen
     }

@@ -9,6 +9,7 @@ import android.hardware.usb.UsbDevice
 import android.hardware.usb.UsbManager
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import android.text.Editable
 import android.text.TextWatcher
 import android.widget.ArrayAdapter
@@ -193,7 +194,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun doDetect(driver: UsbSerialDriver) {
-        if (!usb.open(driver, 115200)) { log("Port öffnen fehlgeschlagen."); return }
+        // REPL: Steuerleitungen NICHT anlegen (sonst Bootloader statt MicroPython).
+        if (!usb.open(driver, 115200, assertControlLines = false)) { log("Port öffnen fehlgeschlagen."); return }
         try {
             val repl = MicroPythonRepl(usb)
             log("Prüfe auf MicroPython…")
@@ -258,7 +260,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun doStart(driver: UsbSerialDriver) {
         val mainPy = assembleMainPy()
-        if (!usb.open(driver, 115200)) { log("Port öffnen fehlgeschlagen."); return }
+        // REPL: Steuerleitungen NICHT anlegen (sonst Bootloader statt MicroPython).
+        if (!usb.open(driver, 115200, assertControlLines = false)) { log("Port öffnen fehlgeschlagen."); return }
         try {
             val repl = MicroPythonRepl(usb)
             if (!repl.isMicroPython()) { log("Kein MicroPython — erst installieren."); return }
@@ -338,9 +341,12 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun log(msg: String) = runOnUiThread {
-        logView.append(msg + "\n")
-        logScroll.post { logScroll.fullScroll(ScrollView.FOCUS_DOWN) }
+    private fun log(msg: String) {
+        Log.i("RoboCode", msg) // auch per `adb logcat -s RoboCode` sichtbar
+        runOnUiThread {
+            logView.append(msg + "\n")
+            logScroll.post { logScroll.fullScroll(ScrollView.FOCUS_DOWN) }
+        }
     }
 
     private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_SHORT).show()
