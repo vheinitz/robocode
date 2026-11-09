@@ -64,6 +64,9 @@ class MainActivity : AppCompatActivity() {
     private var editorLoaded = false
 
     @Volatile private var busy = false
+    // Wenn per Intent-Extra ein Panel vorgegeben ist (z. B. für Screenshots),
+    // soll Auto-Connect das Panel nicht umschalten.
+    private var pinnedPanel: String? = null
     private val actionUsbPermission get() = "$packageName.USB_PERMISSION"
 
     private val usbReceiver = object : BroadcastReceiver() {
@@ -140,6 +143,7 @@ class MainActivity : AppCompatActivity() {
 
         switchTab("setup")
         showPanel(panelCode)
+        intent?.getStringExtra("panel")?.let { pinnedPanel = it; showPanelByName(it) }
 
         val filter = IntentFilter(actionUsbPermission).apply {
             addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED)
@@ -155,6 +159,13 @@ class MainActivity : AppCompatActivity() {
 
     private fun showPanel(p: View) {
         for (v in listOf(panelCode, panelDevice, panelMain, panelLog)) v.visibility = if (v === p) View.VISIBLE else View.GONE
+    }
+
+    private fun showPanelByName(name: String) = when (name) {
+        "device" -> showPanel(panelDevice)
+        "main" -> { refreshMainPy(); showPanel(panelMain) }
+        "log" -> showPanel(panelLog)
+        else -> showPanel(panelCode)
     }
 
     private fun setStatus(text: String, color: Int) {
@@ -240,7 +251,7 @@ class MainActivity : AppCompatActivity() {
             runOnUiThread {
                 setStatus("● kein ESP32", RED)
                 txtDeviceInfo.text = "Kein ESP32 erkannt.\nBitte ESP32 per USB-OTG anschließen."
-                showPanel(panelDevice)
+                if (pinnedPanel == null) showPanel(panelDevice)
             }
             log("Kein ESP32 erkannt — bitte anschließen.")
             return
@@ -268,7 +279,7 @@ class MainActivity : AppCompatActivity() {
                     btnStart.isEnabled = true; btnInstall.isEnabled = false
                     txtDeviceInfo.text = "Verbunden. MicroPython läuft.\nBoard: ${selectedBoard().name}" +
                         (if (m != null) "\n$m" else "")
-                    showPanel(panelCode)
+                    if (pinnedPanel == null) showPanel(panelCode)
                 }
             } else {
                 log("ESP32 ohne MicroPython.")
@@ -276,7 +287,7 @@ class MainActivity : AppCompatActivity() {
                     setStatus("● ohne MicroPython", ORANGE)
                     btnStart.isEnabled = false; btnInstall.isEnabled = true
                     txtDeviceInfo.text = "ESP32 erkannt, aber kein MicroPython.\n→ »MicroPython installieren«."
-                    showPanel(panelDevice)
+                    if (pinnedPanel == null) showPanel(panelDevice)
                 }
             }
         } finally {
