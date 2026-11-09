@@ -182,6 +182,8 @@ class EspLoader(private val io: Io) {
         return when (resp.value) {
             ESP32_CLASSIC_MAGIC -> "ESP32"
             0x000007c6 -> "ESP32-S2"
+            0x6921506F, 0x1B31506F, 0x4881606F, 0x4361606F -> "ESP32-C3"
+            0x9 -> "ESP32-S3"
             else -> "0x%08X (ESP32-Familie)".format(resp.value)
         }
     }

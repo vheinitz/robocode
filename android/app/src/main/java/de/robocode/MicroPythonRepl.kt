@@ -85,6 +85,28 @@ class MicroPythonRepl(private val link: UsbSerialLink) {
         return true
     }
 
+    /**
+     * MicroPython-Maschinenstring (z. B. "ESP32C3 module with ESP32-C3"), um
+     * das Board automatisch zu erkennen. null, wenn nicht ermittelbar.
+     */
+    fun machine(): String? {
+        interrupt()
+        if (!enterRaw(2000)) return null
+        val s = execCapture("import os\nprint(os.uname().machine)")
+        exitRaw()
+        return s
+    }
+
+    /** Code im Raw-REPL ausführen und stdout zurückgeben (Raw-REPL muss offen sein). */
+    private fun execCapture(code: String): String? {
+        link.writeRaw(code.toByteArray(Charsets.UTF_8))
+        link.writeRaw(byteArrayOf(CTRL_D))
+        if (!readContains("OK", 3000)) return null
+        val out = readUntilByte(CTRL_D.toInt(), 3000) ?: return null
+        readUntilByte(CTRL_D.toInt(), 2000) // stderr verwerfen
+        return String(out, Charsets.UTF_8).trim()
+    }
+
     /** Soft-Reset: startet main.py neu (läuft dann auch bei jedem Boot). */
     fun softReset() {
         // In den normalen REPL wechseln, dann Strg-D = Soft-Reboot.

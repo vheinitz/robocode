@@ -2,94 +2,174 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:padding="8dp">
+    android:orientation="vertical">
 
-    <!-- Kopf: Board + Aktionen -->
+    <!-- Titelzeile: kleines „RoboCode" + Verbindungsstatus -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:gravity="center_vertical">
+        android:gravity="center_vertical"
+        android:paddingStart="10dp"
+        android:paddingEnd="10dp"
+        android:paddingTop="4dp"
+        android:paddingBottom="4dp">
 
-        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-            android:text="Board:" android:paddingEnd="6dp" />
-        <Spinner android:id="@+id/spinnerBoard"
-            android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" />
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="RoboCode"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.02" />
+
+        <TextView android:id="@+id/txtStatus"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:gravity="end"
+            android:textSize="12sp"
+            android:text="● nicht verbunden"
+            android:textColor="#c0392b" />
     </LinearLayout>
 
+    <!-- Top-Navigation -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:paddingTop="4dp">
+        android:background="#1a1f27">
 
-        <Button android:id="@+id/btnConnect" style="?android:attr/buttonStyleSmall"
+        <Button android:id="@+id/navCode" style="?android:attr/buttonBarButtonStyle"
             android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"
-            android:text="Verbinden &amp; prüfen" />
-        <Button android:id="@+id/btnInstall" style="?android:attr/buttonStyleSmall"
+            android:text="Code" android:textSize="12sp" android:singleLine="true" />
+        <Button android:id="@+id/navDevice" style="?android:attr/buttonBarButtonStyle"
             android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"
-            android:text="MicroPython installieren" android:enabled="false" />
-        <Button android:id="@+id/btnStart" style="?android:attr/buttonStyleSmall"
+            android:text="Gerät" android:textSize="12sp" android:singleLine="true" />
+        <Button android:id="@+id/navMain" style="?android:attr/buttonBarButtonStyle"
             android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"
-            android:text="▶ Start" android:enabled="false" />
-        <Button android:id="@+id/btnShow" style="?android:attr/buttonStyleSmall"
-            android:layout_width="wrap_content" android:layout_height="wrap_content"
-            android:text="main.py" />
+            android:text="main.py" android:textSize="12sp" android:singleLine="true" />
+        <Button android:id="@+id/navLog" style="?android:attr/buttonBarButtonStyle"
+            android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"
+            android:text="Log" android:textSize="12sp" android:singleLine="true" />
     </LinearLayout>
 
-    <!-- Tabs SETUP / MAIN / LIB -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:paddingTop="4dp">
-
-        <Button android:id="@+id/tabSetup" style="?android:attr/buttonStyleSmall"
-            android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"
-            android:text="⚙ SETUP" />
-        <Button android:id="@+id/tabMain" style="?android:attr/buttonStyleSmall"
-            android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"
-            android:text="▶ MAIN" />
-        <Button android:id="@+id/tabLib" style="?android:attr/buttonStyleSmall"
-            android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"
-            android:text="🧩 LIB" />
-    </LinearLayout>
-
-    <!-- Emoji-/Token-Palette (programmatisch befüllt) -->
-    <HorizontalScrollView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:paddingTop="2dp">
-        <LinearLayout android:id="@+id/palette"
-            android:layout_width="wrap_content" android:layout_height="wrap_content"
-            android:orientation="horizontal" />
-    </HorizontalScrollView>
-
-    <!-- Editor des aktiven Tabs -->
-    <EditText android:id="@+id/editor"
+    <!-- ===================== Panel: CODE ===================== -->
+    <LinearLayout android:id="@+id/panelCode"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="3"
-        android:gravity="top|start"
-        android:inputType="textMultiLine|textNoSuggestions"
-        android:fontFamily="monospace"
-        android:textSize="13sp"
-        android:importantForAutofill="no"
-        android:background="#12151b"
-        android:textColor="#e6e9ef"
-        android:padding="6dp" />
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:padding="6dp">
 
-    <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:text="Log:" android:paddingTop="4dp" android:textStyle="bold" />
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal">
+            <Button android:id="@+id/tabSetup" style="?android:attr/buttonStyleSmall"
+                android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"
+                android:text="⚙ SETUP" />
+            <Button android:id="@+id/tabMain" style="?android:attr/buttonStyleSmall"
+                android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"
+                android:text="▶ MAIN" />
+            <Button android:id="@+id/tabLib" style="?android:attr/buttonStyleSmall"
+                android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"
+                android:text="🧩 LIB" />
+        </LinearLayout>
 
-    <ScrollView android:id="@+id/logScroll"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="2">
-        <TextView android:id="@+id/log"
+        <HorizontalScrollView android:layout_width="match_parent" android:layout_height="wrap_content">
+            <LinearLayout android:id="@+id/palette"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:orientation="horizontal" />
+        </HorizontalScrollView>
+
+        <EditText android:id="@+id/editor"
+            android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
+            android:gravity="top|start"
+            android:inputType="textMultiLine|textNoSuggestions"
+            android:fontFamily="monospace" android:textSize="13sp"
+            android:importantForAutofill="no"
+            android:background="#12151b" android:textColor="#e6e9ef" android:padding="6dp" />
+
+        <Button android:id="@+id/btnStart"
             android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:fontFamily="monospace" android:textSize="12sp"
-            android:padding="4dp" android:textIsSelectable="true" />
-    </ScrollView>
+            android:text="▶ Start — übertragen &amp; ausführen" android:enabled="false" />
+    </LinearLayout>
+
+    <!-- ===================== Panel: GERÄT ===================== -->
+    <LinearLayout android:id="@+id/panelDevice"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:padding="12dp"
+        android:visibility="gone">
+
+        <TextView android:id="@+id/txtDeviceInfo"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:textSize="14sp" android:paddingBottom="10dp"
+            android:text="Noch nicht verbunden." />
+
+        <Button android:id="@+id/btnConnect"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="Verbinden &amp; prüfen" />
+        <Button android:id="@+id/btnInstall"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="MicroPython installieren" android:enabled="false" />
+
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center_vertical" android:paddingTop="10dp">
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="Board (autom.):" android:paddingEnd="6dp" />
+            <Spinner android:id="@+id/spinnerBoard"
+                android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" />
+        </LinearLayout>
+
+        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:textSize="11sp" android:textColor="#8a93a2" android:paddingTop="10dp"
+            android:text="Zum Installieren den ESP32 per BOOT/EN in den Download-Modus bringen (die App sagt es an). Das Board wird beim Verbinden automatisch erkannt; der Regler ist nur zur Korrektur." />
+    </LinearLayout>
+
+    <!-- ===================== Panel: main.py ===================== -->
+    <LinearLayout android:id="@+id/panelMain"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:padding="6dp"
+        android:visibility="gone">
+
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="end">
+            <Button android:id="@+id/btnCopyMain" style="?android:attr/buttonStyleSmall"
+                android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Kopieren" />
+            <Button android:id="@+id/btnDownloadMain" style="?android:attr/buttonStyleSmall"
+                android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="⤓ speichern" />
+        </LinearLayout>
+        <ScrollView android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1">
+            <TextView android:id="@+id/mainPyView"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:fontFamily="monospace" android:textSize="11sp" android:padding="6dp"
+                android:background="#12151b" android:textColor="#e6e9ef" android:textIsSelectable="true" />
+        </ScrollView>
+    </LinearLayout>
+
+    <!-- ===================== Panel: LOG ===================== -->
+    <LinearLayout android:id="@+id/panelLog"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:padding="6dp"
+        android:visibility="gone">
+
+        <Button android:id="@+id/btnClearLog" style="?android:attr/buttonStyleSmall"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="Log leeren" android:layout_gravity="end" />
+        <ScrollView android:id="@+id/logScroll"
+            android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1">
+            <TextView android:id="@+id/log"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:fontFamily="monospace" android:textSize="12sp" android:padding="4dp"
+                android:textIsSelectable="true" />
+        </ScrollView>
+    </LinearLayout>
 </LinearLayout>
