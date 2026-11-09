@@ -6,11 +6,10 @@ interface Props {
   onSave: () => void
   onLoad: () => void
   onExport: () => void
-  onRun: () => void
-  running: boolean
+  onShowMain: () => void
 }
 
-export default function Header({ project, onRename, onSave, onLoad, onExport, onRun, running }: Props) {
+export default function Header({ project, onRename, onSave, onLoad, onExport, onShowMain }: Props) {
   return (
     <header className="shrink-0 border-b border-edge bg-panel px-3 py-2">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
@@ -32,12 +31,10 @@ export default function Header({ project, onRename, onSave, onLoad, onExport, on
           <button onClick={onLoad} className="rounded-md border border-edge bg-panel2 px-2.5 py-1.5 text-xs text-gray-300 hover:text-white">Laden</button>
           <button onClick={onExport} className="rounded-md border border-edge bg-panel2 px-2.5 py-1.5 text-xs text-gray-300 hover:text-white">Export</button>
           <button
-            onClick={onRun}
-            className={`rounded-md px-3 py-1.5 text-xs font-semibold ${
-              running ? 'bg-danger/20 text-danger' : 'bg-accent text-white'
-            }`}
+            onClick={onShowMain}
+            className="rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-white"
           >
-            {running ? '■ Stopp' : '▶ Simulieren'}
+            📄 main.py
           </button>
         </div>
       </div>

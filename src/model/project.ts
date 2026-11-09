@@ -6,7 +6,7 @@
 // Python-Funktionen — ein "Block" ist also ein Quelltext-Container, KEIN
 // Scratch-artiger visueller Block.
 
-export type BlockKind = 'setup' | 'main' | 'function'
+export type BlockKind = 'setup' | 'main' | 'function' | 'lib'
 
 export interface Block {
   id: string
@@ -65,6 +65,60 @@ export function createLineFollowerProject(): Project {
           '      🤖➡️ = 50',
           '    ELSE:',
           '      🤖⬆️ = 70',
+        ].join('\n'),
+      },
+    ],
+  }
+}
+
+/** Playground mit genau drei festen Tabs: SETUP · MAIN · LIB.
+ *  SETUP = Geräte an Pins, LIB = eigene defs, MAIN = Programm. Alles echtes
+ *  MicroPython (EeZear-DSL darunter); kein Transpiler. */
+export function createPlaygroundProject(): Project {
+  return {
+    name: 'Mein Programm',
+    target: 'ESP32 · MicroPython',
+    blocks: [
+      {
+        id: newId(),
+        name: 'SETUP',
+        kind: 'setup',
+        enabled: true,
+        code: [
+          '# Geräte an Pins (läuft einmal)',
+          'led = LED(13)      # 💡 DO',
+          'taster = TASTER(2) # 🔘 DI (Pull-Up + invertiert)',
+          'poti = AI(0)       # 🎚️ Analogeingang 0..255',
+        ].join('\n'),
+      },
+      {
+        id: newId(),
+        name: 'MAIN',
+        kind: 'main',
+        enabled: true,
+        code: [
+          'takt = Every(300)',
+          'while True:              # 🔁',
+          '    if taster:           # ❓ 🔘 gedrückt',
+          '        led.v = 1        #   💡 = 1',
+          '    elif poti.v > 180:   # ❓! 🎚️ > 180',
+          '        led.v = 0        #   💡 = 0',
+          '    elif takt.due:       # ❓! alle 300 ms',
+          '        blinke(1)        #   ↪ LIB',
+          '    sleep_ms(50)         # ⏱️',
+        ].join('\n'),
+      },
+      {
+        id: newId(),
+        name: 'LIB',
+        kind: 'lib',
+        enabled: true,
+        code: [
+          '# Eigene Funktionen (werden vor MAIN eingebaut)',
+          'def blinke(n):',
+          '    for i in range(n):',
+          '        led.toggle()',
+          '        sleep_ms(100)',
         ].join('\n'),
       },
     ],

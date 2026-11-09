@@ -215,15 +215,16 @@ def BTN(pin, name=None):
 # ===========================================================================
 
 class _DigitalOut:
-    def __init__(self, pin, name=None):
+    def __init__(self, pin, inverted=False, name=None):
         self._pin = pin
+        self._inv = inverted  # aktiv-low (z. B. LED mit Anode an VCC)
         self._state = 0
         if SIM:
             _label_out(pin, name or ("DO@%d" % pin))
         self._apply()
 
     def _apply(self):
-        _dout(self._pin, self._state)
+        _dout(self._pin, (1 - self._state) if self._inv else self._state)
 
     def on(self):
         self._state = 1
@@ -289,8 +290,11 @@ class _AnalogIn:
         return self.v
 
 
-def AIN(pin, lo=0, hi=255, name=None):
+def AI(pin, lo=0, hi=255, name=None):   # AI = Analogeingang (Kern-Begriff)
     return _AnalogIn(pin, lo, hi, name=name)
+
+
+AIN = AI  # Alias
 
 
 # ===========================================================================
@@ -388,3 +392,17 @@ class Every:
             self._last = now
             return True
         return False
+
+
+# ===========================================================================
+# Synonyme/Wrapper über DI/DO/AI — nur andere Namen (teils umgedrehte Logik).
+# Kinder sehen vertraute Begriffe; darunter steckt dieselbe DI/DO/AI-Basis.
+# ===========================================================================
+
+def LED(pin, inverted=False, name=None):
+    # LED = Digitalausgang. inverted=True für aktiv-low (Anode an VCC).
+    return _DigitalOut(pin, inverted=inverted, name=name or ("LED@%d" % pin))
+
+
+TASTER = BTN   # Taster = DI mit Pull-Up + invertiert + entprellt
+MOTOR = Motor  # Motor = Wrapper über zwei Ausgänge (H-Brücke)

@@ -1,174 +1,72 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import {
   Project,
   Block,
-  createLineFollowerProject,
-  newId,
+  BlockKind,
+  createPlaygroundProject,
   saveProject,
   loadProject,
   exportProjectJson,
 } from './model/project'
-import { generate } from './lang/codegen'
-import { Simulator } from './sim/simulator'
+import { assembleSketch } from './hw/assemble'
 import BlockEditor, { BlockEditorHandle, EditorContext } from './editor/BlockEditor'
 import Header from './components/Header'
-import BlockTabs from './components/BlockTabs'
 import CommandKeyboard from './components/CommandKeyboard'
-import OutputPanel from './components/OutputPanel'
-import HardwarePanel from './components/HardwarePanel'
-import { Device } from './hw/devices'
-import { BOARDS } from './hw/boards'
-import { RoboModule, newModule } from './lang/modules'
 
-type AppMode = 'lang' | 'hw'
-
-// Beispiel-Hardware für den ESP32-C3, damit das Panel nicht leer startet.
-function seedDevices(): Device[] {
-  return [
-    { id: newId('dev'), type: 'button', name: 'TASTER1', pins: { pin: 3 } },
-    { id: newId('dev'), type: 'led', name: 'LED1', pins: { pin: 5 } },
-    { id: newId('dev'), type: 'poti', name: 'POTI1', pins: { pin: 0 } },
-    { id: newId('dev'), type: 'light', name: 'LICHT1', pins: { pin: 1 } },
-    { id: newId('dev'), type: 'motor', name: 'MOTOR1', pins: { a: 6, b: 7 } },
-  ]
+// Reihenfolge der drei festen Tabs.
+const TAB_ORDER: BlockKind[] = ['setup', 'main', 'lib']
+const TAB_LABEL: Record<string, string> = { setup: '⚙ SETUP', main: '▶ MAIN', lib: '🧩 LIB' }
+const TAB_HINT: Record<string, string> = {
+  setup: 'Geräte an Pins (läuft einmal)',
+  main: 'Dein Programm',
+  lib: 'Eigene Funktionen (def ...)',
 }
 
-function seedModules(): RoboModule[] {
-  // EeZear-Stil, echtes MicroPython (kein Transpiler). Zwei Module: ein
-  // Funktionsmodul BLINK mit einer def und das Hauptmodul MAIN, das sie aufruft.
-  // Beim Zusammenbau landen Funktionsmodule VOR dem Hauptmodul (def vor Lauf).
-  // Rechts: das Icon/Token, mit dem die Zeile "getippt" wurde (nur Beschriftung).
-  const blink = newModule(
-    'BLINK',
-    'module',
-    ['# LED n-mal umschalten', 'def blinke(n):', '    for i in range(n):', '        led1.toggle()', '        sleep_ms(100)'].join('\n'),
+// Alte gespeicherte Projekte auf die drei Playground-Tabs normalisieren.
+function ensurePlayground(p: Project): Project {
+  const fresh = createPlaygroundProject()
+  const blocks = TAB_ORDER.map(
+    (kind) => p.blocks.find((b) => b.kind === kind) ?? fresh.blocks.find((b) => b.kind === kind)!,
   )
-  const main = newModule(
-    'MAIN',
-    'main',
-    [
-      'takt = Every(200)        # ⏱️ Every(200)',
-      'while True:              # 🔁',
-      '    if taster1:          # ❓ 🔲TASTER1   (gedrückt)',
-      '        led1.v = 1       #   💡=1',
-      '    elif licht1.v > 180: # ❓! 👁️LICHT1 > 180',
-      '        led1.v = 0       #   💡=0',
-      '    elif takt.due:       # ❓! alle 200 ms',
-      '        blinke(1)        #   ↪ blinke()',
-      '    motor1.v = poti1.v - 128   # ⚙️ = 🎚️POTI1',
-      '    sleep_ms(50)         # ⏱️ 50',
-    ].join('\n'),
-  )
-  return [main, blink]
+  return { ...p, blocks }
+}
+
+// Zugewiesene Namen (z. B. `led = LED(13)`) aus allen Tabs sammeln — damit die
+// Tastatur hinter einem Gerätenamen passende Aktionen anbietet.
+function knownNamesOf(project: Project): string[] {
+  const names = new Set<string>()
+  const re = /^\s*([A-Za-z_]\w*)\s*=(?!=)/gm
+  for (const b of project.blocks) {
+    let m: RegExpExecArray | null
+    while ((m = re.exec(b.code))) names.add(m[1])
+  }
+  return [...names]
 }
 
 export default function App() {
-  const [project, setProject] = useState<Project>(() => loadProject() ?? createLineFollowerProject())
-  const [activeId, setActiveId] = useState<string>(() => project.blocks[0]?.id ?? '')
+  const [project, setProject] = useState<Project>(
+    () => ensurePlayground(loadProject() ?? createPlaygroundProject()),
+  )
+  const blocks = TAB_ORDER.map((k) => project.blocks.find((b) => b.kind === k)!).filter(Boolean)
+  const [activeKind, setActiveKind] = useState<BlockKind>('setup')
   const [context, setContext] = useState<EditorContext | null>(null)
   const [nativeMode, setNativeMode] = useState(false)
-  const [view, setView] = useState<'code' | 'output'>('code')
-
-  const [sim, setSim] = useState<Simulator | null>(null)
-  const [simTick, setSimTick] = useState(0)
-  const [running, setRunning] = useState(false)
-
-  const [appMode, setAppMode] = useState<AppMode>('hw')
-  const [boardId, setBoardId] = useState<string>(BOARDS[0].id)
-  const [devices, setDevices] = useState<Device[]>(seedDevices)
-  const [modules, setModules] = useState<RoboModule[]>(seedModules)
+  const [view, setView] = useState<'code' | 'main'>('code')
 
   const editorRef = useRef<BlockEditorHandle | null>(null)
-  const intervalRef = useRef<number | null>(null)
-  const simRef = useRef<Simulator | null>(null)
 
-  const activeBlock = project.blocks.find((b) => b.id === activeId) ?? project.blocks[0]
-  const codegen = useMemo(() => generate(project), [project])
+  const activeBlock = blocks.find((b) => b.kind === activeKind) ?? blocks[0]
+  const knownNames = useMemo(() => knownNamesOf(project), [project])
 
-  // --- Block-Mutationen ---
+  const assembled = useMemo(() => {
+    const by = (k: BlockKind) => project.blocks.find((b) => b.kind === k)?.code ?? ''
+    return assembleSketch({ setup: by('setup'), lib: by('lib'), main: by('main') }, project.target)
+  }, [project])
+
   function updateBlock(id: string, patch: Partial<Block>) {
     setProject((p) => ({ ...p, blocks: p.blocks.map((b) => (b.id === id ? { ...b, ...patch } : b)) }))
   }
 
-  function addFunctionBlock() {
-    const name = window.prompt('Name des Funktionsblocks (z. B. TURN_LEFT):', 'TURN_LEFT')
-    if (!name) return
-    const safe = name.trim().replace(/\s+/g, '_')
-    const block: Block = { id: newId(), name: safe, kind: 'function', enabled: true, code: '# ' + safe + '\n' }
-    setProject((p) => ({ ...p, blocks: [...p.blocks, block] }))
-    setActiveId(block.id)
-  }
-
-  function renameBlock(id: string) {
-    const b = project.blocks.find((x) => x.id === id)
-    if (!b) return
-    const name = window.prompt('Block umbenennen:', b.name)
-    if (!name) return
-    updateBlock(id, { name: name.trim().replace(/\s+/g, '_') })
-  }
-
-  function duplicateBlock(id: string) {
-    const b = project.blocks.find((x) => x.id === id)
-    if (!b) return
-    const copy: Block = { ...b, id: newId(), name: b.name + '_KOPIE' }
-    setProject((p) => {
-      const idx = p.blocks.findIndex((x) => x.id === id)
-      const blocks = [...p.blocks]
-      blocks.splice(idx + 1, 0, copy)
-      return { ...p, blocks }
-    })
-    setActiveId(copy.id)
-  }
-
-  function deleteBlock(id: string) {
-    const b = project.blocks.find((x) => x.id === id)
-    if (!b || b.kind !== 'function') return
-    if (!window.confirm(`Block „${b.name}" löschen?`)) return
-    setProject((p) => ({ ...p, blocks: p.blocks.filter((x) => x.id !== id) }))
-    if (activeId === id) setActiveId(project.blocks[0]?.id ?? '')
-  }
-
-  function moveBlock(id: string, dir: -1 | 1) {
-    setProject((p) => {
-      const idx = p.blocks.findIndex((x) => x.id === id)
-      const j = idx + dir
-      if (idx < 0 || j < 0 || j >= p.blocks.length) return p
-      const blocks = [...p.blocks]
-      ;[blocks[idx], blocks[j]] = [blocks[j], blocks[idx]]
-      return { ...p, blocks }
-    })
-  }
-
-  // --- Simulation ---
-  function stopSim() {
-    if (intervalRef.current !== null) {
-      clearInterval(intervalRef.current)
-      intervalRef.current = null
-    }
-    simRef.current?.stop()
-    setRunning(false)
-  }
-
-  function startSim() {
-    stopSim()
-    const s = new Simulator(project)
-    s.start()
-    simRef.current = s
-    setSim(s)
-    setSimTick(0)
-    setRunning(true)
-    setView('output')
-    intervalRef.current = window.setInterval(() => {
-      // Mehrere Schritte pro Frame = fluessigere, schnellere Fahrt.
-      for (let i = 0; i < 2; i++) s.step()
-      setSimTick((t) => t + 1)
-      if (!s.running) stopSim()
-    }, 45)
-  }
-
-  useEffect(() => () => stopSim(), [])
-
-  // --- Tastatur-API ---
   const kbApi = {
     insertText: (s: string) => editorRef.current?.insertText(s),
     newline: () => editorRef.current?.newline(),
@@ -186,72 +84,54 @@ export default function App() {
     URL.revokeObjectURL(url)
   }
 
+  function downloadMain() {
+    const blob = new Blob([assembled.mainPy], { type: 'text/x-python' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'main.py'
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div className="flex h-full flex-col">
       <Header
         project={project}
         onRename={(name) => setProject((p) => ({ ...p, name }))}
-        onSave={() => {
-          saveProject(project)
-        }}
+        onSave={() => saveProject(project)}
         onLoad={() => {
           const p = loadProject()
-          if (p) {
-            setProject(p)
-            setActiveId(p.blocks[0]?.id ?? '')
-          }
+          if (p) setProject(ensurePlayground(p))
         }}
         onExport={handleExport}
-        onRun={() => (running ? stopSim() : startSim())}
-        running={running}
+        onShowMain={() => setView('main')}
       />
 
-      {/* Modus-Umschalter: robolang-Playground ⇄ Hardware-Konfiguration */}
-      <div className="flex shrink-0 gap-1 border-b border-edge bg-panel2 px-2 py-1">
-        <button
-          onClick={() => setAppMode('hw')}
-          className={`rounded-md px-3 py-1 text-xs font-medium ${appMode === 'hw' ? 'bg-accent/15 text-accent' : 'text-gray-400 hover:text-gray-200'}`}
-        >
-          🔌 Hardware
-        </button>
-        <button
-          onClick={() => setAppMode('lang')}
-          className={`rounded-md px-3 py-1 text-xs font-medium ${appMode === 'lang' ? 'bg-accent/15 text-accent' : 'text-gray-400 hover:text-gray-200'}`}
-        >
-          🧩 robolang (Playground)
-        </button>
-      </div>
-
-      {appMode === 'hw' && (
-        <HardwarePanel
-          boardId={boardId}
-          devices={devices}
-          modules={modules}
-          onBoardChange={setBoardId}
-          onDevicesChange={setDevices}
-          onModulesChange={setModules}
-        />
-      )}
-
-      {appMode === 'lang' && (
-      <>
       <div className="grid min-h-0 flex-1 lg:grid-cols-2">
-        {/* Code-Spalte */}
-        <div className={`flex min-h-0 flex-col ${view === 'output' ? 'hidden lg:flex' : 'flex'} border-r border-edge`}>
-          <BlockTabs
-            blocks={project.blocks}
-            activeId={activeBlock?.id ?? ''}
-            onSelect={setActiveId}
-            onAdd={addFunctionBlock}
-            onRename={renameBlock}
-            onDuplicate={duplicateBlock}
-            onDelete={deleteBlock}
-            onToggleEnable={(id) => {
-              const b = project.blocks.find((x) => x.id === id)
-              if (b) updateBlock(id, { enabled: !b.enabled })
-            }}
-            onMove={moveBlock}
-          />
+        {/* Editor-Spalte */}
+        <div className={`flex min-h-0 flex-col ${view === 'main' ? 'hidden lg:flex' : 'flex'} border-r border-edge`}>
+          {/* 3 feste Tabs */}
+          <div className="flex shrink-0 items-center gap-1 border-b border-edge bg-panel2 px-2 py-1.5">
+            {blocks.map((b) => (
+              <button
+                key={b.kind}
+                onClick={() => setActiveKind(b.kind)}
+                title={TAB_HINT[b.kind]}
+                className={`rounded-md border px-3 py-1 text-xs font-medium ${
+                  b.kind === activeKind
+                    ? 'border-accent bg-accent/15 text-accent'
+                    : 'border-edge bg-panel text-gray-400 hover:text-gray-200'
+                }`}
+              >
+                {TAB_LABEL[b.kind]}
+              </button>
+            ))}
+            <span className="ml-2 hidden text-[11px] text-gray-500 sm:inline">
+              {activeBlock && TAB_HINT[activeBlock.kind]}
+            </span>
+          </div>
+
           <div className="min-h-0 flex-1">
             {activeBlock && (
               <BlockEditor
@@ -264,18 +144,41 @@ export default function App() {
               />
             )}
           </div>
+
           <CommandKeyboard
             context={context}
-            symbols={codegen.symbols}
+            blockKind={activeBlock?.kind ?? 'main'}
+            knownNames={knownNames}
             api={kbApi}
             nativeMode={nativeMode}
             onToggleNative={() => setNativeMode((v) => !v)}
           />
         </div>
 
-        {/* Ausgabe-/Simulations-Spalte */}
-        <div className={`min-h-0 ${view === 'code' ? 'hidden lg:block' : 'block'}`}>
-          <OutputPanel result={codegen} sim={sim} simTick={simTick} running={running} />
+        {/* main.py-Spalte */}
+        <div className={`flex min-h-0 flex-col ${view === 'code' ? 'hidden lg:flex' : 'flex'}`}>
+          <div className="flex shrink-0 items-center justify-between border-b border-edge bg-panel2 px-2 py-1.5">
+            <span className="text-[11px] uppercase tracking-wide text-gray-500">
+              main.py — DSL (versteckt) + SETUP + LIB + MAIN
+            </span>
+            <div className="flex gap-1.5">
+              <button
+                onClick={() => navigator.clipboard?.writeText(assembled.mainPy)}
+                className="rounded-md border border-edge bg-panel2 px-2 py-1 text-[11px] text-gray-300 hover:text-white"
+              >
+                Kopieren
+              </button>
+              <button
+                onClick={downloadMain}
+                className="rounded-md border border-edge bg-panel2 px-2 py-1 text-[11px] text-gray-300 hover:text-white"
+              >
+                ⤓ main.py
+              </button>
+            </div>
+          </div>
+          <pre className="min-h-0 flex-1 overflow-auto bg-[#12151b] p-3 font-mono text-[11px] leading-relaxed text-gray-200">
+            {assembled.mainPy}
+          </pre>
         </div>
       </div>
 
@@ -285,17 +188,15 @@ export default function App() {
           onClick={() => setView('code')}
           className={`flex-1 py-2 text-xs font-medium ${view === 'code' ? 'text-accent' : 'text-gray-500'}`}
         >
-          ⌨ Code
+          ⌨ Editor
         </button>
         <button
-          onClick={() => setView('output')}
-          className={`flex-1 py-2 text-xs font-medium ${view === 'output' ? 'text-accent' : 'text-gray-500'}`}
+          onClick={() => setView('main')}
+          className={`flex-1 py-2 text-xs font-medium ${view === 'main' ? 'text-accent' : 'text-gray-500'}`}
         >
-          🤖 Ausgabe
+          📄 main.py
         </button>
       </nav>
-      </>
-      )}
     </div>
   )
 }

@@ -1,5 +1,5 @@
 import { EditorContext } from '../editor/BlockEditor'
-import { SymbolTable } from '../lang/transpiler'
+import { BlockKind } from '../model/project'
 import { getSuggestions, Suggestion } from '../keyboard/context'
 
 export interface KeyboardApi {
@@ -10,7 +10,8 @@ export interface KeyboardApi {
 
 interface Props {
   context: EditorContext | null
-  symbols: SymbolTable
+  blockKind: BlockKind
+  knownNames: string[]
   api: KeyboardApi
   nativeMode: boolean
   onToggleNative: () => void
@@ -24,8 +25,8 @@ const kindColor: Record<Suggestion['kind'], string> = {
   val: 'bg-panel2 text-gray-200 border-edge',
 }
 
-export default function CommandKeyboard({ context, symbols, api, nativeMode, onToggleNative }: Props) {
-  const suggestions = context ? getSuggestions(context, symbols) : []
+export default function CommandKeyboard({ context, blockKind, knownNames, api, nativeMode, onToggleNative }: Props) {
+  const suggestions = context ? getSuggestions(context, blockKind, knownNames) : []
   const numbers = ['7', '8', '9', '4', '5', '6', '1', '2', '3', '0', '-', '.']
 
   return (
