@@ -28,10 +28,15 @@ Parallel zum Web-Playground (`../src`). **Kein WebView** — Editor, Zusammenbau
 In **Android Studio** `android/` öffnen und auf ein Gerät mit USB-OTG
 installieren. (Abhängigkeit `usb-serial-for-android` via JitPack.)
 
-## Firmware bereitstellen (einmalig)
-MicroPython-Bins von <https://micropython.org/download/> laden und ablegen als
-`app/src/main/assets/firmware/micropython-esp32c3.bin` bzw. `…s3.bin`
-(nicht im Git, siehe `.gitignore`).
+## Firmware bereitstellen (einmalig vor dem Bauen)
+Die MicroPython-Bins werden in die APK gepackt, liegen aber nicht im Git
+(zu groß). Einmal laden:
+
+    android/fetch-firmware.sh
+
+holt die aktuelle Stable (v1.29.0) für C3/S3 nach
+`app/src/main/assets/firmware/`. Danach normal bauen — die Bins landen in der APK,
+und „MicroPython installieren" flasht sie ohne Internet direkt vom Telefon.
 
 ## Status
 Code vollständig und in sich schlüssig, aber **noch nicht auf Gerät getestet**

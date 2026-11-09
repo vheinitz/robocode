@@ -1,9 +1,12 @@
-MicroPython-Firmware hier ablegen (Merged-Bin, Offset 0x0):
+MicroPython-Firmware (Merged-Bin, Offset 0x0) — wird in die APK gepackt:
 
-  micropython-esp32c3.bin   <- für ESP32-C3
-  micropython-esp32s3.bin   <- für ESP32-S3
+  micropython-esp32c3.bin   <- ESP32-C3
+  micropython-esp32s3.bin   <- ESP32-S3
 
-Bezug: https://micropython.org/download/  (passenden Chip wählen, .bin laden)
+Diese .bin-Dateien liegen bewusst NICHT im Git (zu groß, siehe .gitignore).
+Vor dem Bauen einmal laden:
 
-Die Dateinamen müssen exakt stimmen (siehe Board.firmwareAsset in Boards.kt).
-Diese Bins sind groß (~1.5 MB) und werden bewusst NICHT im Git mitgeführt.
+  android/fetch-firmware.sh      (holt die aktuelle Stable von micropython.org)
+
+Stand Skript: MicroPython v1.29.0. Die Dateinamen müssen exakt stimmen
+(siehe Board.firmwareAsset in Boards.kt).
