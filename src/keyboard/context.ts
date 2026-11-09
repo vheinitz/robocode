@@ -12,13 +12,17 @@ export interface Suggestion {
   kind: 'cmd' | 'dir' | 'op' | 'val' | 'ctrl'
 }
 
-// SETUP: Geräte an Pins (EeZear-leicht). DI/DO/AI = Basis, Rest sind Wrapper.
+// SETUP: Geräte an Pins (EeZear-leicht).
+// Basis-Primitive DI/DO/AI/AO + darüber die Synonyme/Wrapper LED/Taster/Motor.
 const SETUP_DEFS: Suggestion[] = [
-  { label: '💡 LED', insert: 'led = LED(13)', kind: 'cmd' },
-  { label: '🔘 Taster', insert: 'taster = TASTER(2)', kind: 'cmd' },
-  { label: '🎚️ AI analog', insert: 'poti = AI(0)', kind: 'cmd' },
+  // Basis (digital/analog, ein/aus)
   { label: '📥 DI ein', insert: 'eingang = DI(4)', kind: 'cmd' },
   { label: '📤 DO aus', insert: 'ausgang = DO(5)', kind: 'cmd' },
+  { label: '🎚️ AI analog', insert: 'poti = AI(0)', kind: 'cmd' },
+  { label: '🔆 AO PWM', insert: 'dimmer = AO(5)', kind: 'cmd' },
+  // Wrapper/Synonyme (vertraute Begriffe über DI/DO)
+  { label: '💡 LED', insert: 'led = LED(13)', kind: 'cmd' },
+  { label: '🔘 Taster', insert: 'taster = TASTER(2)', kind: 'cmd' },
   { label: '⚙️ Motor', insert: 'motor = MOTOR(6, 7)', kind: 'cmd' },
 ]
 
@@ -39,6 +43,7 @@ const DEF: Suggestion = { label: '🧩 Funktion', insert: 'def name():', kind: '
 const ACTIONS: Suggestion[] = [
   { label: '= 1 (an)', insert: '.v = 1', kind: 'dir' },
   { label: '= 0 (aus)', insert: '.v = 0', kind: 'dir' },
+  { label: '= 128 (AO)', insert: '.v = 128', kind: 'dir' },
   { label: 'umschalten', insert: '.toggle()', kind: 'dir' },
   { label: '.on()', insert: '.on()', kind: 'dir' },
   { label: '.off()', insert: '.off()', kind: 'dir' },

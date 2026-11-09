@@ -332,6 +332,9 @@ def PWM(pin, freq=1000, name=None):
     return _PwmOut(pin, freq, name=name)
 
 
+AO = PWM  # AO = Analog-Out (PWM), Gegenstück zu AI
+
+
 # ===========================================================================
 # Motor an H-Bruecke (2 PWM-Pins, optional En/Dis). Kurzform: m.v = 80  (-100..100).
 # (EeZear kennt keinen Motor; gehoert aber zu robocodes Geraetepalette.)

@@ -43,12 +43,16 @@ export default function CommandKeyboard({ context, blockKind, knownNames, api, n
         </button>
       </div>
 
-      {/* Kontextuelle Vorschlaege */}
+      {/* Kontextuelle Vorschlaege. Endet ein Baustein mit ':', direkt eine Ebene
+          tiefer einruecken (newline nutzt die Einrueckungslogik des Editors). */}
       <div className="mb-2 grid grid-cols-2 gap-1.5 sm:grid-cols-4 md:grid-cols-5">
         {suggestions.map((s, i) => (
           <button
             key={i}
-            onClick={() => api.insertText(s.insert)}
+            onClick={() => {
+              api.insertText(s.insert)
+              if (s.insert.replace(/\s+$/, '').endsWith(':')) api.newline()
+            }}
             className={`touch-key truncate rounded-md border px-2 py-2 text-left text-sm font-medium active:scale-[0.97] ${kindColor[s.kind]}`}
           >
             {s.label}
@@ -60,6 +64,22 @@ export default function CommandKeyboard({ context, blockKind, knownNames, api, n
           </span>
         )}
       </div>
+
+      {/* Geräte-Namen als feste Tasten (immer verfügbar, aus SETUP). */}
+      {knownNames.length > 0 && (
+        <div className="mb-2 flex flex-wrap gap-1.5">
+          <span className="self-center text-[11px] uppercase tracking-wide text-gray-600">Geräte</span>
+          {knownNames.map((n) => (
+            <button
+              key={n}
+              onClick={() => api.insertText(n)}
+              className="touch-key rounded-md border border-ok/30 bg-ok/10 px-2 py-1 font-mono text-xs text-ok active:scale-[0.97]"
+            >
+              {n}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Zahlenreihe + Bearbeitung */}
       <div className="flex gap-1.5">
