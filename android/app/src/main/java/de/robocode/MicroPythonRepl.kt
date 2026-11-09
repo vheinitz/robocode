@@ -126,8 +126,8 @@ class MicroPythonRepl(private val link: UsbSerialLink) {
         link.writeRaw(code.toByteArray(Charsets.UTF_8))
         link.writeRaw(byteArrayOf(CTRL_D))
         if (!readContains("OK", 3000)) { listener.log("Keine OK-Antwort auf: $code"); return false }
-        readUntilByte(CTRL_D, 5000) // stdout verwerfen
-        val err = readUntilByte(CTRL_D, 5000) // stderr
+        readUntilByte(CTRL_D.toInt(), 5000) // stdout verwerfen
+        val err = readUntilByte(CTRL_D.toInt(), 5000) // stderr
         if (err != null && err.isNotEmpty()) {
             val msg = String(err, Charsets.UTF_8).trim()
             if (msg.isNotEmpty()) { listener.log("Fehler auf dem ESP32:\n$msg"); return false }

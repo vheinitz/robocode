@@ -56,6 +56,7 @@ class MainActivity : AppCompatActivity() {
     )
     private var active = "setup"
     private var suppressWatcher = false
+    private var editorLoaded = false
 
     @Volatile private var busy = false
     private val actionUsbPermission get() = "$packageName.USB_PERMISSION"
@@ -97,7 +98,7 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.tabLib).setOnClickListener { switchTab("lib") }
         findViewById<Button>(R.id.btnConnect).setOnClickListener { onConnect() }
         btnInstall.setOnClickListener { onInstall() }
-        btnStart.setOnClickListener { onStart() }
+        btnStart.setOnClickListener { onStartClicked() }
         findViewById<Button>(R.id.btnShow).setOnClickListener { onShowMainPy() }
 
         editor.addTextChangedListener(object : TextWatcher {
@@ -120,12 +121,15 @@ class MainActivity : AppCompatActivity() {
     // ---------------- Editor / Tabs / Palette ----------------
 
     private fun switchTab(key: String) {
-        tabs[active] = editor.text?.toString() ?: tabs[active] ?: ""
+        // Nur zurückschreiben, wenn der Editor den aktiven Tab schon anzeigt —
+        // sonst würde der erste Aufruf den Seed mit leerem Text überschreiben.
+        if (editorLoaded) tabs[active] = editor.text?.toString() ?: ""
         active = key
         suppressWatcher = true
         editor.setText(tabs[key])
         editor.setSelection(editor.text?.length ?: 0)
         suppressWatcher = false
+        editorLoaded = true
         buildPalette(key)
     }
 
@@ -244,7 +248,7 @@ class MainActivity : AppCompatActivity() {
 
     // ---------------- Start: zusammenbauen, übertragen, ausführen ----------------
 
-    private fun onStart() {
+    private fun onStartClicked() {
         if (busy) { toast("Läuft bereits…"); return }
         tabs[active] = editor.text?.toString() ?: ""
         val driver = usb.findDriver() ?: run { toast("Kein ESP32 erkannt"); return }
