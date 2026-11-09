@@ -21,25 +21,31 @@ export interface MethodDef {
 export interface DeviceTypeInfo {
   type: DeviceType
   label: string
-  cls: string // Python-Klassenname
-  /** robolang-Symbol (Emoji) vor dem Gerätenamen. */
+  cls: string // Python-Klassenname (Anzeige)
+  /** robopy-Factory, die das Gerät erzeugt (EeZear-Stil: DO/DI/BTN/AIN/PWM/Motor). */
+  factory: string
+  /** Icon fürs UI / die Token-Tastatur (nur Beschriftung, kein Code). */
   emoji: string
   /** Methode bei bloßer Referenz ohne Attribut (z. B. Taster -> pressed). */
   bareMethod?: string
   slots: PinSlot[]
   methods: MethodDef[]
+  /** Fertige Code-Schnipsel zum Einfügen; {i} = Instanzname. */
+  snippets: string[]
 }
 
 const AIN_METHODS: MethodDef[] = [
-  { name: 'value', desc: '0..100 % (skaliert)' },
+  { name: 'value', desc: '0..255 (skaliert, wie EeZears Ax)' },
   { name: 'raw', desc: '0..4095 (roh)' },
 ]
+const AIN_SNIPPETS = ['{i}.v', '{i}.raw']
 
 export const DEVICE_TYPES: Record<DeviceType, DeviceTypeInfo> = {
   button: {
     type: 'button',
     label: 'Taster',
-    cls: 'Button',
+    cls: 'BTN',
+    factory: 'BTN', // Pull-Up + invertiert + entprellt (EeZear-BTN)
     emoji: '\u{1F532}', // 🔲
     bareMethod: 'pressed', // 🔲NAME ohne Attribut = gedrückt (active-low gegen GND)
     slots: [{ key: 'pin', label: 'Pin', cap: 'in' }],
@@ -47,11 +53,13 @@ export const DEVICE_TYPES: Record<DeviceType, DeviceTypeInfo> = {
       { name: 'pressed', desc: 'True solange gedrückt (entprellt)' },
       { name: 'was_clicked', desc: 'True einmal pro neuer Druck-Flanke' },
     ],
+    snippets: ['if {i}:', '{i}.p', '{i}.v'],
   },
   led: {
     type: 'led',
     label: 'LED',
-    cls: 'Led',
+    cls: 'DO',
+    factory: 'DO',
     emoji: '\u{1F4A1}', // 💡
     slots: [{ key: 'pin', label: 'Pin', cap: 'out' }],
     methods: [
@@ -60,11 +68,13 @@ export const DEVICE_TYPES: Record<DeviceType, DeviceTypeInfo> = {
       { name: 'toggle', desc: 'umschalten' },
       { name: 'set', desc: 'set(x): 1/0' },
     ],
+    snippets: ['{i}.v = 1', '{i}.v = 0', '{i}.on()', '{i}.off()', '{i}.toggle()'],
   },
   din: {
     type: 'din',
     label: 'DIN (Digitaleingang)',
-    cls: 'Din',
+    cls: 'DI',
+    factory: 'DI',
     emoji: '\u{1F4E5}', // 📥
     bareMethod: 'value',
     slots: [{ key: 'pin', label: 'Pin', cap: 'in' }],
@@ -73,11 +83,13 @@ export const DEVICE_TYPES: Record<DeviceType, DeviceTypeInfo> = {
       { name: 'is_high', desc: 'True bei HIGH' },
       { name: 'is_low', desc: 'True bei LOW' },
     ],
+    snippets: ['if {i}:', '{i}.v'],
   },
   dout: {
     type: 'dout',
     label: 'DOUT (Digitalausgang)',
-    cls: 'Dout',
+    cls: 'DO',
+    factory: 'DO',
     emoji: '\u{1F4E4}', // 📤
     slots: [{ key: 'pin', label: 'Pin', cap: 'out' }],
     methods: [
@@ -86,38 +98,46 @@ export const DEVICE_TYPES: Record<DeviceType, DeviceTypeInfo> = {
       { name: 'toggle', desc: 'umschalten' },
       { name: 'set', desc: 'set(x): 1/0' },
     ],
+    snippets: ['{i}.v = 1', '{i}.v = 0', '{i}.on()', '{i}.off()', '{i}.toggle()'],
   },
   light: {
     type: 'light',
     label: 'Lichtsensor',
-    cls: 'Ain', // intern derselbe Analogeingang
+    cls: 'AIN', // intern derselbe Analogeingang
+    factory: 'AIN',
     emoji: '\u{1F441}️', // 👁️
     bareMethod: 'value',
     slots: [{ key: 'pin', label: 'Pin (ADC)', cap: 'adc' }],
     methods: AIN_METHODS,
+    snippets: AIN_SNIPPETS,
   },
   ain: {
     type: 'ain',
     label: 'AIN (allgemein)',
-    cls: 'Ain',
+    cls: 'AIN',
+    factory: 'AIN',
     emoji: '\u{1F39B}️', // 🎛️
     bareMethod: 'value',
     slots: [{ key: 'pin', label: 'Pin (ADC)', cap: 'adc' }],
     methods: AIN_METHODS,
+    snippets: AIN_SNIPPETS,
   },
   poti: {
     type: 'poti',
     label: 'Potentiometer',
-    cls: 'Ain',
+    cls: 'AIN',
+    factory: 'AIN',
     emoji: '\u{1F39A}️', // 🎚️
     bareMethod: 'value',
     slots: [{ key: 'pin', label: 'Pin (ADC)', cap: 'adc' }],
     methods: AIN_METHODS,
+    snippets: AIN_SNIPPETS,
   },
   motor: {
     type: 'motor',
     label: 'Motor (H-Brücke)',
     cls: 'Motor',
+    factory: 'Motor',
     emoji: '⚙️', // ⚙️
     slots: [
       { key: 'a', label: 'PWM A', cap: 'pwm' },
@@ -125,14 +145,11 @@ export const DEVICE_TYPES: Record<DeviceType, DeviceTypeInfo> = {
       { key: 'en', label: 'En/Dis (optional)', cap: 'out', optional: true },
     ],
     methods: [
-      { name: 'r / cw', desc: '.r=v / .cw=v: rechts/CW mit Tempo v' },
-      { name: 'l / ccw', desc: '.l=v / .ccw=v: links/CCW mit Tempo v' },
       { name: 'speed', desc: 'speed(pct): -100..100' },
       { name: 'stop', desc: 'austrudeln' },
       { name: 'brake', desc: 'Kurzschlussbremse' },
-      { name: 'on', desc: 'Treiber freigeben' },
-      { name: 'off', desc: 'anhalten + sperren' },
     ],
+    snippets: ['{i}.v = 80', '{i}.speed(80)', '{i}.stop()', '{i}.brake()'],
   },
 }
 
@@ -236,15 +253,15 @@ export function validate(board: Board, devices: Device[]): Issue[] {
   return issues
 }
 
-/** Python-Instanziierung eines Geräts, z. B. `start = Button(0)`.
- *  Single-Pin-Typen nutzen ihre Klasse direkt; light/ain/poti teilen Ain. */
+/** EeZear-Setup-Zeile eines Geräts, z. B. `led1 = DO(13)` oder `taster1 = BTN(2)`.
+ *  Single-Pin-Typen nutzen ihre Factory direkt; light/ain/poti teilen AIN. */
 export function emitInstance(d: Device, instance: string): string {
   const info = DEVICE_TYPES[d.type]
   if (d.type === 'motor') {
-    const parts = [`a=${d.pins.a}`, `b=${d.pins.b}`]
+    const parts = [String(d.pins.a), String(d.pins.b)]
     if (d.pins.en !== undefined) parts.push(`en=${d.pins.en}`)
     return `${instance} = Motor(${parts.join(', ')})`
   }
   // Alle übrigen Typen haben genau einen Pin-Slot "pin".
-  return `${instance} = ${info.cls}(${d.pins.pin})`
+  return `${instance} = ${info.factory}(${d.pins.pin})`
 }

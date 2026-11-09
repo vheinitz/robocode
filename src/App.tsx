@@ -34,30 +34,29 @@ function seedDevices(): Device[] {
 }
 
 function seedModules(): RoboModule[] {
-  // Zwei robo-Skripte: ein Funktionsmodul BLINK (🧩 blink) und das Hauptmodul
-  // MAIN, das blink aufruft. So ist der Mehrmodul-Zusammenbau gleich sichtbar:
-  // Funktionsmodule landen beim Transpilieren VOR dem Hauptmodul.
+  // EeZear-Stil, echtes MicroPython (kein Transpiler). Zwei Module: ein
+  // Funktionsmodul BLINK mit einer def und das Hauptmodul MAIN, das sie aufruft.
+  // Beim Zusammenbau landen Funktionsmodule VOR dem Hauptmodul (def vor Lauf).
+  // Rechts: das Icon/Token, mit dem die Zeile "getippt" wurde (nur Beschriftung).
   const blink = newModule(
     'BLINK',
     'module',
-    ['🧩blink [n]:', '  🔁i n:', '    💡LED1.toggle', '    ⏱️ 100'].join('\n'),
+    ['# LED n-mal umschalten', 'def blinke(n):', '    for i in range(n):', '        led1.toggle()', '        sleep_ms(100)'].join('\n'),
   )
-  // robolang (neue Syntax): 🔲 Taster (bare = gedrückt), 🎚️ Poti, 👁️ Lichtsensor,
-  // ❓/❓!/❓!: = if/elif/else, ⚙️ Motor-Richtung, blink = Aufruf aus Modul BLINK.
   const main = newModule(
     'MAIN',
     'main',
     [
-      '🔁:',
-      '  ❓ 🔲TASTER1:',
-      '    💡LED1.on',
-      '  ❓! 👁️LICHT1 > 70:',
-      '    💡LED1.off',
-      '  ❓!:',
-      '    blink 2',
-      '  speed = 🎚️POTI1',
-      '  ⚙️MOTOR1.r = speed',
-      '  ⏱️ 50',
+      'takt = Every(200)        # ⏱️ Every(200)',
+      'while True:              # 🔁',
+      '    if taster1:          # ❓ 🔲TASTER1   (gedrückt)',
+      '        led1.v = 1       #   💡=1',
+      '    elif licht1.v > 180: # ❓! 👁️LICHT1 > 180',
+      '        led1.v = 0       #   💡=0',
+      '    elif takt.due:       # ❓! alle 200 ms',
+      '        blinke(1)        #   ↪ blinke()',
+      '    motor1.v = poti1.v - 128   # ⚙️ = 🎚️POTI1',
+      '    sleep_ms(50)         # ⏱️ 50',
     ].join('\n'),
   )
   return [main, blink]

@@ -1,18 +1,19 @@
-// Zusammenbau der EINEN main.py: eingebettete HAL-Lib + Geräte-Setup + Logik.
-// Genau diese Datei würde die Android-App per raw-REPL auf den ESP32 schreiben
-// (kein .bin, kein Modul-Management — ein ausführbares Skript).
+// Zusammenbau der EINEN main.py: eingebettete robopy-Lib (EeZear-Stil) +
+// Geräte-Setup + der Sketch — OHNE Transpiler. Was im Editor steht, ist schon
+// das Python, das der ESP32 ausführt (kein Zwischenformat, keine Übersetzung).
+// Genau diese Datei würde die Android-App per raw-REPL auf den ESP32 schreiben.
 
-import halSource from '../../firmware/hal.py?raw'
+import robopySource from '../../firmware/robopy.py?raw'
 import { Board } from './boards'
 import { Device, instanceNames, emitInstance } from './devices'
 
 export interface Assembled {
   mainPy: string
-  /** Geräte-Name -> Python-Instanz (für Anzeige / robolang-Mapping). */
+  /** Geräte-Name -> Python-Instanz (für Anzeige). */
   instances: Map<string, string>
 }
 
-export function assembleMainPy(board: Board, devices: Device[], logic: string): Assembled {
+export function assembleMainPy(board: Board, devices: Device[], sketch: string): Assembled {
   const instances = instanceNames(devices)
 
   const setupLines = devices.map((d) => emitInstance(d, instances.get(d.id)!))
@@ -20,7 +21,7 @@ export function assembleMainPy(board: Board, devices: Device[], logic: string): 
 
   const header = [
     '# ======================================================================',
-    `# main.py — generiert von robolang`,
+    '# main.py — EeZear-Stil, zusammengebaut von robocode (KEIN Transpiler)',
     `# Board: ${board.name} (${board.chip}, Flash-Offset 0x${board.flashOffset.toString(16)})`,
     '# Diese Datei wird komplett auf den ESP32 übertragen und als main.py gestartet.',
     '# ======================================================================',
@@ -29,29 +30,16 @@ export function assembleMainPy(board: Board, devices: Device[], logic: string): 
   const mainPy = [
     header,
     '',
-    'import time',
+    '# ----- robopy-Bibliothek (eingebettet, EeZear-Stil) -----',
+    robopySource.trim(),
     '',
-    '# ----- HAL-Bibliothek (eingebettet) -----',
-    halSource.trim(),
-    '',
-    '# ----- Hardware-Konfiguration -----',
+    '# ----- Hardware-Konfiguration (benannte Geräte) -----',
     setup,
     '',
-    '# ----- Programm (robolang) -----',
-    logic.trim() || '# (noch keine Logik)',
+    '# ----- Sketch -----',
+    sketch.trim() || '# (noch kein Sketch)',
     '',
   ].join('\n')
 
   return { mainPy, instances }
-}
-
-/** Vorgabe-Testlogik, die das konfigurierte Setup belebt (reines MicroPython). */
-export function defaultLogic(): string {
-  return [
-    'from time import sleep_ms',
-    '',
-    'while True:',
-    '    # Beispiel: ersetze dies später durch die robolang-Übersetzung',
-    '    sleep_ms(50)',
-  ].join('\n')
 }

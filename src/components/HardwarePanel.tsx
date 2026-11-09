@@ -1,6 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { BOARDS, getBoard, PinDef } from '../hw/boards'
-import { transpileRobolang } from '../lang/robolang'
 import {
   Device,
   DeviceType,
@@ -11,7 +10,7 @@ import {
   PinSlot,
 } from '../hw/devices'
 import { assembleMainPy } from '../hw/assemble'
-import { RoboModule, newModule, combineModules, locateLine } from '../lang/modules'
+import { RoboModule, newModule, combineModules } from '../lang/modules'
 import { newId } from '../model/project'
 
 interface Props {
@@ -23,6 +22,30 @@ interface Props {
   onModulesChange: (modules: RoboModule[]) => void
 }
 
+// Steuer-Tokens für die Tastatur. `back` = Cursor um n Zeichen zurück (z. B. vor
+// den Doppelpunkt). So tippt man ganze Bausteine statt Buchstaben.
+interface Token {
+  label: string
+  text: string
+  back?: number
+}
+const CONTROL_TOKENS: Token[] = [
+  { label: 'while True:', text: 'while True:\n    ' },
+  { label: 'if', text: 'if :\n    ', back: 5 },
+  { label: 'elif', text: 'elif :\n    ', back: 5 },
+  { label: 'else:', text: 'else:\n    ' },
+  { label: 'for i…', text: 'for i in range(10):\n    ' },
+  { label: 'sleep', text: 'sleep_ms(50)' },
+  { label: 'Every', text: 'takt = Every(200)' },
+  { label: '.due', text: 'takt.due' },
+  { label: '>', text: ' > ' },
+  { label: '<', text: ' < ' },
+  { label: 'and', text: ' and ' },
+  { label: 'not', text: 'not ' },
+  { label: '⇥ ein', text: '    ' },
+  { label: '⏎', text: '\n' },
+]
+
 export default function HardwarePanel({
   boardId,
   devices,
@@ -31,43 +54,58 @@ export default function HardwarePanel({
   onDevicesChange,
   onModulesChange,
 }: Props) {
-  const [codeView, setCodeView] = useState<'main' | 'py'>('main')
+  const [codeView, setCodeView] = useState<'main' | 'sketch'>('main')
   const [activeModId, setActiveModId] = useState<string>(() => modules[0]?.id ?? '')
   const board = getBoard(boardId)
   const instances = useMemo(() => instanceNames(devices), [devices])
   const issues = useMemo(() => validate(board, devices), [board, devices])
-  const knownInstances = useMemo(() => new Set(instances.values()), [instances])
 
-  // Alle Module zu einem Quelltext fügen (Funktionsmodule zuerst) und EINMAL
-  // transpilieren — so sehen 🧩-Aufrufe die Definitionen aus anderen Modulen.
+  // Kein Transpiler mehr: die Module werden nur zusammengefügt (Funktionsmodule
+  // zuerst) und als Sketch in die main.py eingebaut — fertiges MicroPython.
   const combined = useMemo(() => combineModules(modules), [modules])
-  const robo = useMemo(
-    () => transpileRobolang(combined.source, knownInstances),
-    [combined.source, knownInstances],
+  const assembled = useMemo(
+    () => assembleMainPy(board, devices, combined.source),
+    [board, devices, combined.source],
   )
-  const assembled = useMemo(() => assembleMainPy(board, devices, robo.python), [board, devices, robo.python])
-
-  // Transpiler-Meldungen tragen Zeilen des Gesamtquelltexts — zurück auf
-  // Modul + lokale Zeile abbilden, damit die Meldung auffindbar bleibt.
-  const roboIssues = useMemo(
-    () => robo.issues.map((i) => ({ ...i, at: locateLine(combined.spans, i.line) })),
-    [robo.issues, combined.spans],
-  )
-  const roboErrors = roboIssues.filter((i) => i.level === 'error')
-  const roboWarns = roboIssues.filter((i) => i.level === 'warn')
 
   const activeMod = modules.find((m) => m.id === activeModId) ?? modules[0]
+
+  const taRef = useRef<HTMLTextAreaElement | null>(null)
+  const caret = useRef<{ s: number; e: number }>({ s: 0, e: 0 })
+  function rememberCaret(e: React.SyntheticEvent<HTMLTextAreaElement>) {
+    const t = e.currentTarget
+    caret.current = { s: t.selectionStart, e: t.selectionEnd }
+  }
 
   function updateModuleCode(code: string) {
     if (!activeMod) return
     onModulesChange(modules.map((m) => (m.id === activeMod.id ? { ...m, code } : m)))
   }
+
+  // Token an der Cursor-Position einfügen (der eigentliche Tipp-Sparer am Handy).
+  function insertToken(text: string, back = 0) {
+    const code = activeMod?.code ?? ''
+    const s = Math.min(caret.current.s, code.length)
+    const e = Math.min(caret.current.e, code.length)
+    const next = code.slice(0, s) + text + code.slice(e)
+    const pos = s + text.length - back
+    caret.current = { s: pos, e: pos }
+    updateModuleCode(next)
+    requestAnimationFrame(() => {
+      const ta = taRef.current
+      if (ta) {
+        ta.focus()
+        ta.setSelectionRange(pos, pos)
+      }
+    })
+  }
+
   function addModule() {
     const base = 'MODUL'
     let n = modules.filter((m) => m.kind === 'module').length + 1
     const taken = new Set(modules.map((m) => m.name.toUpperCase()))
     while (taken.has(`${base}${n}`)) n++
-    const mod = newModule(`${base}${n}`, 'module', '🧩neu [n]:\n  ⏱️ n\n')
+    const mod = newModule(`${base}${n}`, 'module', 'def neu():\n    pass\n')
     onModulesChange([...modules, mod])
     setActiveModId(mod.id)
   }
@@ -80,7 +118,7 @@ export default function HardwarePanel({
   }
   function removeModule(id: string) {
     const m = modules.find((x) => x.id === id)
-    if (!m || m.kind === 'main') return // Hauptmodul bleibt
+    if (!m || m.kind === 'main') return
     if (!window.confirm(`Modul „${m.name}" löschen?`)) return
     const rest = modules.filter((x) => x.id !== id)
     onModulesChange(rest)
@@ -118,7 +156,7 @@ export default function HardwarePanel({
 
   return (
     <div className="grid min-h-0 flex-1 overflow-auto lg:grid-cols-2">
-      {/* Konfiguration */}
+      {/* Konfiguration + Sketch-Editor */}
       <div className="min-h-0 overflow-auto border-r border-edge p-3">
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <label className="text-xs text-gray-400">Board</label>
@@ -159,6 +197,7 @@ export default function HardwarePanel({
               board={board}
               onChange={(patch) => updateDevice(d.id, patch)}
               onRemove={() => removeDevice(d.id)}
+              onInsert={(snippet) => insertToken(snippet)}
             />
           ))}
           {devices.length === 0 && (
@@ -185,9 +224,8 @@ export default function HardwarePanel({
 
         <div className="mt-4">
           <label className="mb-1 block text-xs text-gray-400">
-            robolang-Programm (nutzt die Geräte oben über 💡⚙️👁️🔲 + Name).
-            Mehrere Module werden beim Übersetzen zusammengefügt — Funktionsmodule
-            (🧩) zuerst, das Hauptmodul zuletzt.
+            Sketch (echtes MicroPython, EeZear-Stil — kein Transpiler). Tippe wenig:
+            unten die Tasten fügen ganze Bausteine ein.
           </label>
 
           {/* Modul-Reiter */}
@@ -204,7 +242,7 @@ export default function HardwarePanel({
                     : 'bg-panel2 text-gray-400 hover:text-gray-200'
                 }`}
               >
-                <span>{m.kind === 'main' ? '▶' : '🧩'}</span>
+                <span>{m.kind === 'main' ? '▶' : 'ƒ'}</span>
                 {m.name}
                 {m.kind !== 'main' && (
                   <span
@@ -227,30 +265,36 @@ export default function HardwarePanel({
             </button>
           </div>
 
+          {/* Token-Tastatur: Steuer-Bausteine */}
+          <div className="mb-1 flex flex-wrap gap-1 rounded-md border border-edge bg-panel2 p-1.5">
+            {CONTROL_TOKENS.map((t) => (
+              <button
+                key={t.label}
+                onClick={() => insertToken(t.text, t.back ?? 0)}
+                className="rounded bg-panel px-1.5 py-0.5 font-mono text-[11px] text-gray-300 hover:bg-accent/15 hover:text-accent"
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+
           <textarea
+            ref={taRef}
             value={activeMod?.code ?? ''}
             onChange={(e) => updateModuleCode(e.target.value)}
+            onSelect={rememberCaret}
+            onClick={rememberCaret}
+            onKeyUp={rememberCaret}
             spellCheck={false}
-            className="h-44 w-full resize-y rounded-md border border-edge bg-[#12151b] p-2 font-mono text-xs text-gray-200 focus:border-accent focus:outline-none"
+            className="h-52 w-full resize-y rounded-md border border-edge bg-[#12151b] p-2 font-mono text-xs text-gray-200 focus:border-accent focus:outline-none"
           />
-          {(roboErrors.length > 0 || roboWarns.length > 0) && (
-            <div className="mt-2 space-y-1">
-              {roboErrors.map((i, k) => (
-                <div key={`re${k}`} className="rounded-md border border-danger/30 bg-danger/10 px-2 py-1 text-[11px] text-danger">
-                  ✖ {i.at ? `${i.at.name} Z. ${i.at.localLine}` : `Z. ${i.line}`}: {i.message}
-                </div>
-              ))}
-              {roboWarns.map((i, k) => (
-                <div key={`rw${k}`} className="rounded-md border border-warn/30 bg-warn/10 px-2 py-1 text-[11px] text-warn">
-                  ⚠ {i.at ? `${i.at.name} Z. ${i.at.localLine}` : `Z. ${i.line}`}: {i.message}
-                </div>
-              ))}
-            </div>
-          )}
+          <p className="mt-1 text-[11px] text-gray-600">
+            Tipp: Geräte-Schnipsel unten an den Gerätezeilen (z. B. <span className="font-mono">led1.v = 1</span>) auch antippbar → fügt direkt ein.
+          </p>
         </div>
       </div>
 
-      {/* Assembliertes main.py / robolang-Übersetzung */}
+      {/* Assembliertes main.py / Sketch */}
       <div className="flex min-h-0 flex-col p-3">
         <div className="mb-2 flex items-center justify-between gap-2">
           <div className="flex gap-1">
@@ -258,18 +302,18 @@ export default function HardwarePanel({
               onClick={() => setCodeView('main')}
               className={`rounded-md px-2 py-1 text-[11px] font-medium ${codeView === 'main' ? 'bg-accent/15 text-accent' : 'text-gray-400 hover:text-gray-200'}`}
             >
-              main.py
+              main.py (komplett)
             </button>
             <button
-              onClick={() => setCodeView('py')}
-              className={`rounded-md px-2 py-1 text-[11px] font-medium ${codeView === 'py' ? 'bg-accent/15 text-accent' : 'text-gray-400 hover:text-gray-200'}`}
+              onClick={() => setCodeView('sketch')}
+              className={`rounded-md px-2 py-1 text-[11px] font-medium ${codeView === 'sketch' ? 'bg-accent/15 text-accent' : 'text-gray-400 hover:text-gray-200'}`}
             >
-              robolang → Python
+              nur Sketch
             </button>
           </div>
           <div className="flex gap-1.5">
             <button
-              onClick={() => navigator.clipboard?.writeText(codeView === 'main' ? assembled.mainPy : robo.python)}
+              onClick={() => navigator.clipboard?.writeText(codeView === 'main' ? assembled.mainPy : combined.source)}
               className="rounded-md border border-edge bg-panel2 px-2 py-1 text-[11px] text-gray-300 hover:text-white"
             >
               Kopieren
@@ -283,12 +327,12 @@ export default function HardwarePanel({
           </div>
         </div>
         <pre className="min-h-0 flex-1 overflow-auto rounded-md border border-edge bg-[#12151b] p-3 font-mono text-[11px] leading-relaxed text-gray-200">
-          {codeView === 'main' ? assembled.mainPy : robo.python || '# (leeres Programm)'}
+          {codeView === 'main' ? assembled.mainPy : combined.source || '# (leerer Sketch)'}
         </pre>
         <p className="mt-2 text-[11px] text-gray-600">
-          Diese Datei überträgt die Android-App später per raw-REPL über USB-CDC
-          (kein .bin). Die MicroPython-Firmware selbst wird getrennt geflasht
-          (vgl. ../espflasher).
+          Was im Sketch steht, läuft genau so auf dem ESP32 — keine Übersetzung.
+          Die Android-App überträgt diese main.py per raw-REPL über USB-CDC (kein
+          .bin). Die MicroPython-Firmware wird getrennt geflasht (vgl. ../espflasher).
         </p>
       </div>
     </div>
@@ -301,18 +345,20 @@ function DeviceRow({
   board,
   onChange,
   onRemove,
+  onInsert,
 }: {
   device: Device
   instance: string
   board: ReturnType<typeof getBoard>
   onChange: (patch: Partial<Device>) => void
   onRemove: () => void
+  onInsert: (snippet: string) => void
 }) {
   const info = DEVICE_TYPES[device.type]
   return (
     <div className="rounded-md border border-edge bg-panel2 p-2">
       <div className="mb-2 flex items-center gap-2">
-        <span className="rounded bg-accent/15 px-1.5 py-0.5 text-[11px] font-medium text-accent">{info.emoji} {info.cls}</span>
+        <span className="rounded bg-accent/15 px-1.5 py-0.5 text-[11px] font-medium text-accent">{info.emoji} {info.factory}</span>
         <input
           value={device.name}
           onChange={(e) => onChange({ name: e.target.value })}
@@ -336,16 +382,21 @@ function DeviceRow({
         ))}
       </div>
 
+      {/* Code-Schnipsel: antippen = in den Sketch einfügen */}
       <div className="mt-2 flex flex-wrap gap-1.5">
-        {info.methods.map((m) => (
-          <span
-            key={m.name}
-            title={m.desc}
-            className="rounded bg-panel px-1.5 py-0.5 font-mono text-[10px] text-gray-400"
-          >
-            {instance}.{m.name}()
-          </span>
-        ))}
+        {info.snippets.map((s) => {
+          const code = s.replace(/\{i\}/g, instance)
+          return (
+            <button
+              key={s}
+              onClick={() => onInsert(code)}
+              title="einfügen"
+              className="rounded bg-panel px-1.5 py-0.5 font-mono text-[10px] text-gray-400 hover:bg-accent/15 hover:text-accent"
+            >
+              {code}
+            </button>
+          )
+        })}
       </div>
     </div>
   )
