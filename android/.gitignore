@@ -1,0 +1,8 @@
+.gradle/
+build/
+/local.properties
+*.iml
+.idea/
+
+# MicroPython-Firmware (groß, separat von micropython.org beziehen)
+app/src/main/assets/firmware/*.bin
