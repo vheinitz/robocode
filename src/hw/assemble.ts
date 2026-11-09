@@ -6,6 +6,7 @@
 // als Text einfügen. Genau diese Datei überträgt die Android-App per raw-REPL.
 
 import robopySource from '../../firmware/robopy.py?raw'
+import { Board, predefinedPinLines } from './boards'
 
 export interface Parts {
   setup: string
@@ -22,13 +23,13 @@ function section(title: string, body: string, fallback: string): string {
   return `# ----- ${title} -----\n${b || fallback}`
 }
 
-export function assembleSketch(parts: Parts, target = 'ESP32 · MicroPython'): Assembled {
+export function assembleSketch(parts: Parts, board: Board): Assembled {
   const header = [
     '# ======================================================================',
     '# main.py — zusammengebaut vom robolang-Playground (EeZear-Stil, KEIN Transpiler)',
-    `# Ziel: ${target}`,
-    '# Aufbau: DSL (versteckt) + SETUP + LIB + MAIN. Wird komplett auf den ESP32',
-    '# übertragen und als main.py gestartet.',
+    `# Board: ${board.name} (${board.chip}, Flash-Offset 0x${board.flashOffset.toString(16)})`,
+    '# Aufbau: DSL (versteckt) + vordefinierte Pins + SETUP + LIB + MAIN.',
+    '# Wird komplett auf den ESP32 übertragen und als main.py gestartet.',
     '# ======================================================================',
   ].join('\n')
 
@@ -37,6 +38,9 @@ export function assembleSketch(parts: Parts, target = 'ESP32 · MicroPython'): A
     '',
     '# ----- DSL-Bibliothek (versteckt, nicht editierbar; EeZear-Stil) -----',
     robopySource.trim(),
+    '',
+    `# ----- Vordefinierte Pins für ${board.name} (versteckt) -----`,
+    predefinedPinLines(board),
     '',
     section('SETUP (Geräte an Pins)', parts.setup, '# (noch keine Geräte)'),
     '',

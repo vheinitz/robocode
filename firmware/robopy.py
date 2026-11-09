@@ -133,11 +133,88 @@ except ImportError:
 
 
 # ===========================================================================
+# _Readable: macht ein Lese-Objekt im Ausdruck wie seine Zahl nutzbar -> KEIN
+# .v noetig. `if poti > 70:` , `a = taster` , `dimmer.v = poti`. Unterklassen
+# liefern _num(). (MicroPython unterstuetzt Vergleichs-/Arithmetik-Dunders und
+# __bool__; Setter nutzen zusaetzlich _val(), um nicht auf __int__ angewiesen zu
+# sein.)
+# ===========================================================================
+
+class _Readable:
+    def _num(self):
+        raise NotImplementedError
+
+    def __int__(self):
+        return int(self._num())
+
+    def __index__(self):
+        return int(self._num())
+
+    def __float__(self):
+        return float(self._num())
+
+    def __bool__(self):
+        return bool(self._num())
+
+    def __lt__(self, o):
+        return self._num() < _val(o)
+
+    def __le__(self, o):
+        return self._num() <= _val(o)
+
+    def __gt__(self, o):
+        return self._num() > _val(o)
+
+    def __ge__(self, o):
+        return self._num() >= _val(o)
+
+    def __eq__(self, o):
+        return self._num() == _val(o)
+
+    def __ne__(self, o):
+        return self._num() != _val(o)
+
+    def __add__(self, o):
+        return self._num() + _val(o)
+
+    def __radd__(self, o):
+        return _val(o) + self._num()
+
+    def __sub__(self, o):
+        return self._num() - _val(o)
+
+    def __rsub__(self, o):
+        return _val(o) - self._num()
+
+    def __mul__(self, o):
+        return self._num() * _val(o)
+
+    def __rmul__(self, o):
+        return _val(o) * self._num()
+
+    def __floordiv__(self, o):
+        return self._num() // _val(o)
+
+    def __mod__(self, o):
+        return self._num() % _val(o)
+
+    def __repr__(self):
+        return str(self._num())
+
+    __hash__ = object.__hash__  # trotz __eq__ hashbar bleiben
+
+
+def _val(x):
+    # Zahl aus einem Lese-Objekt holen (damit DO.v = poti ohne .v geht).
+    return x._num() if isinstance(x, _Readable) else x
+
+
+# ===========================================================================
 # Digitale Eingaenge: DI (direkt), DIPU (Pull-Up), BTN (PU + invertiert +
 # entprellt). Fluente Konfiguration wie EeZears .setMode/.setInverted/.setDebounce.
 # ===========================================================================
 
-class _DigitalIn:
+class _DigitalIn(_Readable):
     def __init__(self, pin, pull_up=False, inverted=False, debounce_ms=0, name=None):
         self._pin = pin
         self._pull = pull_up
@@ -182,16 +259,16 @@ class _DigitalIn:
             self._stable = r
         return self._stable
 
+    def _num(self):         # 0/1 für _Readable (if btn / a = btn / btn > 0)
+        return 1 if self._read() else 0
+
     @property
     def p(self):            # klammerlos: if btn.p
         return self._read()
 
     @property
-    def v(self):            # 0/1
+    def v(self):            # 0/1 (explizit)
         return 1 if self._read() else 0
-
-    def __bool__(self):     # if btn:
-        return self._read()
 
     def __call__(self):     # btn()
         return self._read()
@@ -243,8 +320,8 @@ class _DigitalOut:
         return self._state
 
     @v.setter
-    def v(self, x):          # LED.v = 1   <- das EeZear-Gefuehl, so nah es geht
-        self._state = 1 if x else 0
+    def v(self, x):          # LED.v = 1  (oder LED.v = taster  -> ohne .v lesbar)
+        self._state = 1 if _val(x) else 0
         self._apply()
 
     def __call__(self, x=None):   # LED(1) / LED()
@@ -260,11 +337,61 @@ def DO(pin, name=None):
     return _DigitalOut(pin, name=name)
 
 
+class _Pin(_Readable):
+    """Vordefinierter Pin (D0..Dn). Richtung wird LAZY bei erster Nutzung
+    festgelegt: `D13.v = 1` / `D13.on()` -> Ausgang; `if D13:` / `a = D13` ->
+    Eingang. So kann man jeden Board-Pin ohne vorherige Definition nutzen."""
+
+    def __init__(self, gpio, name=None):
+        self._pin = gpio
+        self._out = False
+        self._state = 0
+        self._name = name or ("D%d" % gpio)
+
+    def _num(self):                      # lesen -> Eingang
+        if self._out:
+            return self._state
+        return 1 if _din(self._pin, False) else 0
+
+    def _write(self, x):                 # schreiben -> Ausgang
+        if not self._out and SIM:
+            _label_out(self._pin, self._name)
+        self._out = True
+        self._state = 1 if _val(x) else 0
+        _dout(self._pin, self._state)
+
+    def on(self):
+        self._write(1)
+
+    def off(self):
+        self._write(0)
+
+    def toggle(self):
+        self._write(0 if self._state else 1)
+
+    @property
+    def v(self):
+        return self._num()
+
+    @v.setter
+    def v(self, x):
+        self._write(x)
+
+    def __call__(self, x=None):
+        if x is None:
+            return self._num()
+        self._write(x)
+
+
+def D(gpio, name=None):
+    return _Pin(gpio, name=name)
+
+
 # ===========================================================================
 # Analogeingang: AIN. Vorgabe-Skala 0..255 wie EeZears Ax (per set_range aenderbar).
 # ===========================================================================
 
-class _AnalogIn:
+class _AnalogIn(_Readable):
     def __init__(self, pin, lo=0, hi=255, name=None):
         self._pin = pin
         self._lo = lo
@@ -278,9 +405,12 @@ class _AnalogIn:
         self._hi = hi
         return self
 
-    @property
-    def v(self):            # klammerlos: x = pot.v
+    def _num(self):         # für _Readable: pot > 70 / a = pot / dimmer.v = pot
         return self._lo + round(_ain_raw(self._pin) / 4095 * (self._hi - self._lo))
+
+    @property
+    def v(self):            # klammerlos auch explizit: x = pot.v
+        return self._num()
 
     @property
     def raw(self):
@@ -318,8 +448,8 @@ class _PwmOut:
         return self._duty
 
     @v.setter
-    def v(self, x):
-        self._duty = max(0, min(255, int(x)))
+    def v(self, x):          # dimmer.v = 128  oder  dimmer.v = poti
+        self._duty = max(0, min(255, int(_val(x))))
         self._apply()
 
     def __call__(self, x=None):
@@ -348,8 +478,8 @@ class _Motor:
         if self._en:
             self._en.on()
 
-    def speed(self, pct):               # -100..100
-        pct = max(-100, min(100, pct))
+    def speed(self, pct):               # -100..100 (auch motor.speed(poti))
+        pct = max(-100, min(100, _val(pct)))
         duty = round(abs(pct) / 100 * 255)
         if pct >= 0:
             self._a.v = duty

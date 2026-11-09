@@ -9,6 +9,7 @@ import {
   exportProjectJson,
 } from './model/project'
 import { assembleSketch } from './hw/assemble'
+import { BOARDS, getBoard } from './hw/boards'
 import BlockEditor, { BlockEditorHandle, EditorContext } from './editor/BlockEditor'
 import Header from './components/Header'
 import CommandKeyboard from './components/CommandKeyboard'
@@ -52,6 +53,7 @@ export default function App() {
   const [context, setContext] = useState<EditorContext | null>(null)
   const [nativeMode, setNativeMode] = useState(false)
   const [view, setView] = useState<'code' | 'main'>('code')
+  const [boardId, setBoardId] = useState<string>(BOARDS[0].id)
 
   const editorRef = useRef<BlockEditorHandle | null>(null)
 
@@ -60,8 +62,8 @@ export default function App() {
 
   const assembled = useMemo(() => {
     const by = (k: BlockKind) => project.blocks.find((b) => b.kind === k)?.code ?? ''
-    return assembleSketch({ setup: by('setup'), lib: by('lib'), main: by('main') }, project.target)
-  }, [project])
+    return assembleSketch({ setup: by('setup'), lib: by('lib'), main: by('main') }, getBoard(boardId))
+  }, [project, boardId])
 
   function updateBlock(id: string, patch: Partial<Block>) {
     setProject((p) => ({ ...p, blocks: p.blocks.map((b) => (b.id === id ? { ...b, ...patch } : b)) }))
@@ -130,6 +132,20 @@ export default function App() {
             <span className="ml-2 hidden text-[11px] text-gray-500 sm:inline">
               {activeBlock && TAB_HINT[activeBlock.kind]}
             </span>
+            <label className="ml-auto flex items-center gap-1 text-[11px] text-gray-500" title="Board (HW) — bestimmt die vordefinierten Pins D.. / A..">
+              🔌
+              <select
+                value={boardId}
+                onChange={(e) => setBoardId(e.target.value)}
+                className="rounded border border-edge bg-panel px-1.5 py-0.5 text-xs text-gray-100"
+              >
+                {BOARDS.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
 
           <div className="min-h-0 flex-1">
