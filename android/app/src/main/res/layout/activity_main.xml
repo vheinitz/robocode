@@ -80,16 +80,28 @@
                 android:text="LIB" />
         </LinearLayout>
 
-        <!-- Palette: Gruppen-Zeile (Top-Level) -->
-        <HorizontalScrollView android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:scrollbars="none">
-            <LinearLayout android:id="@+id/palette"
-                android:layout_width="wrap_content" android:layout_height="wrap_content"
-                android:orientation="horizontal" />
-        </HorizontalScrollView>
+        <!-- Werkzeugzeile: Start-Dreieck ganz links + Gruppen-Palette -->
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center_vertical"
+            android:paddingTop="4dp" android:paddingBottom="2dp">
+            <ImageButton android:id="@+id/btnStart"
+                android:layout_width="wrap_content" android:layout_height="34dp"
+                android:src="@drawable/ic_start"
+                android:background="@drawable/bg_icon_button"
+                android:scaleType="fitCenter" android:adjustViewBounds="true"
+                android:padding="7dp" android:layout_marginEnd="6dp"
+                android:contentDescription="Start — übertragen und ausführen"
+                android:enabled="false" />
+            <HorizontalScrollView android:layout_width="0dp" android:layout_weight="1"
+                android:layout_height="wrap_content" android:scrollbars="none">
+                <LinearLayout android:id="@+id/palette"
+                    android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:orientation="horizontal" />
+            </HorizontalScrollView>
+        </LinearLayout>
         <!-- Palette: aufgeklappte Unter-Zeile (Inhalt der gewählten Gruppe) -->
         <HorizontalScrollView android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:scrollbars="none">
+            android:scrollbars="none" android:paddingBottom="2dp">
             <LinearLayout android:id="@+id/paletteSub"
                 android:layout_width="wrap_content" android:layout_height="wrap_content"
                 android:gravity="center_vertical"
@@ -103,10 +115,6 @@
             android:fontFamily="monospace" android:textSize="13sp"
             android:importantForAutofill="no"
             android:background="#12151b" android:textColor="#e6e9ef" android:padding="6dp" />
-
-        <Button android:id="@+id/btnStart"
-            android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:text="Start — übertragen &amp; ausführen" android:enabled="false" />
     </LinearLayout>
 
     <!-- ===================== Panel: GERÄT ===================== -->

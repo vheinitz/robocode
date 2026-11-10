@@ -16,6 +16,8 @@ import android.view.View
 import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
+import android.widget.ImageButton
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.SeekBar
@@ -53,7 +55,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var txtStatus: TextView
     private lateinit var txtDeviceInfo: TextView
     private lateinit var btnInstall: Button
-    private lateinit var btnStart: Button
+    private lateinit var btnStart: ImageButton
     private lateinit var logView: TextView
     private lateinit var logScroll: ScrollView
     private lateinit var mainPyView: TextView
@@ -93,7 +95,7 @@ class MainActivity : AppCompatActivity() {
                 UsbManager.ACTION_USB_DEVICE_DETACHED -> {
                     log("ESP32 abgezogen.")
                     terminalRunning = false // Terminal-Leseschleife beenden
-                    runOnUiThread { setStatus("● kein ESP32", RED); btnStart.isEnabled = false }
+                    runOnUiThread { setStatus("● kein ESP32", RED); setStartEnabled(false) }
                 }
             }
         }
@@ -143,6 +145,7 @@ class MainActivity : AppCompatActivity() {
 
         // Aktionen
         btnStart.setOnClickListener { onStartClicked() }
+        setStartEnabled(false)
         findViewById<Button>(R.id.btnConnect).setOnClickListener { autoConnect() }
         btnInstall.setOnClickListener { onInstall() }
         findViewById<Button>(R.id.btnCopyMain).setOnClickListener {
@@ -215,22 +218,29 @@ class MainActivity : AppCompatActivity() {
         buildPalette(key)
     }
 
-    // Palette als aufklappbare Gruppen. Top-Zeile = Gruppen; beim Klick klappt
-    // die Unter-Zeile mit den Elementen auf (Board hat noch eine dritte Stufe:
-    // do/di/a -> Zahl). Icons folgen später; vorerst Textlabels.
-    private val GROUPS = listOf("Board", "Kontrolle", "Operator", "Warte", "Seriell", "Mehr")
+    // Palette als aufklappbare Gruppen. Top-Zeile = Gruppen (dieselben Icons wie
+    // in der Web-App, als Vektor-Drawables). Klick klappt die Unter-Zeile auf;
+    // Board hat eine dritte Stufe: do/di/a -> Zahl.
+    private val GROUPS = listOf(
+        "Board" to R.drawable.ic_chip,
+        "Kontrolle" to R.drawable.ic_while,
+        "Operator" to R.drawable.ic_gt,
+        "Warte" to R.drawable.ic_wait,
+        "Seriell" to R.drawable.ic_log,
+        "Mehr" to R.drawable.ic_every,
+    )
 
     private fun buildPalette(key: String) {
         grp = null; grpPort = null
         rebuildGroups()
     }
 
-    /** Gruppen-Zeile (neu) zeichnen — markiert die offene Gruppe, ohne den
+    /** Gruppen-Zeile zeichnen — markiert die offene Gruppe (grün), ohne den
      *  Zustand zurückzusetzen; danach die Unter-Zeile aktualisieren. */
     private fun rebuildGroups() {
         palette.removeAllViews()
-        for (g in GROUPS) {
-            palette.addView(groupButton(g, active = (g == grp)) {
+        for ((g, icon) in GROUPS) {
+            palette.addView(iconButton(icon, active = (g == grp)) {
                 grp = if (grp == g) null else g
                 grpPort = null
                 rebuildGroups()
@@ -245,17 +255,28 @@ class MainActivity : AppCompatActivity() {
         when (grp) {
             null -> { paletteSub.visibility = View.GONE; return }
             "Board" -> buildBoardSub()
-            "Kontrolle" -> addLeaves(
-                "while" to "while True:", "for" to "for i in range(10):",
-                "if" to "if :", "elif" to "elif :", "sonst" to "else:", "def" to "def name():",
-            )
-            "Operator" -> addLeaves(
+            "Kontrolle" -> {
+                iconLeaf(R.drawable.ic_while, "while True:")
+                iconLeaf(R.drawable.ic_for, "for i in range(10):")
+                iconLeaf(R.drawable.ic_if, "if :")
+                iconLeaf(R.drawable.ic_elif, "elif :")
+                iconLeaf(R.drawable.ic_else, "else:")
+                iconLeaf(R.drawable.ic_def, "def name():")
+            }
+            "Operator" -> addChips(
                 ">" to " > ", "<" to " < ", ">=" to " >= ", "<=" to " <= ", "==" to " == ",
                 "=" to " = ", "+" to " + ", "-" to " - ", "und" to " and ", "oder" to " or ", "nicht" to "not ",
             )
             "Warte" -> buildWaitSub()
-            "Seriell" -> addLeaves("log Text" to "log(\"Hallo\")", "log Wert" to "log(\"Wert:\", )")
-            "Mehr" -> addLeaves("umschalten" to ".toggle()", "Farbe" to ".color(\"rot\")", "Takt" to "takt = Every(300)")
+            "Seriell" -> {
+                iconLeaf(R.drawable.ic_log, "log(\"Hallo\")")
+                chip("log x") { insertAtCursor("log(\"Wert:\", )") }
+            }
+            "Mehr" -> {
+                iconLeaf(R.drawable.ic_toggle, ".toggle()")
+                iconLeaf(R.drawable.ic_color, ".color(\"rot\")")
+                iconLeaf(R.drawable.ic_every, "takt = Every(300)")
+            }
         }
         paletteSub.visibility = View.VISIBLE
     }
@@ -263,27 +284,30 @@ class MainActivity : AppCompatActivity() {
     private fun buildBoardSub() {
         val bk = selectedBoard().banks
         if (grpPort == null) {
-            for (p in listOf("do", "di", "a")) leaf(p) { grpPort = p; refreshSub() }
+            // do/di/a: kleine 1/0 bzw. ~ oben, Pfeil zeigt die Richtung (raus/rein).
+            paletteSub.addView(portButton("1/0", R.drawable.ic_arrow_out) { grpPort = "do"; refreshSub() })
+            paletteSub.addView(portButton("1/0", R.drawable.ic_arrow_in) { grpPort = "di"; refreshSub() })
+            paletteSub.addView(portButton("~", R.drawable.ic_arrow_in) { grpPort = "a"; refreshSub() })
         } else {
-            leaf("‹ zurück") { grpPort = null; refreshSub() }
+            chip("‹") { grpPort = null; refreshSub() }
             val count = when (grpPort) { "do" -> bk.doPins.size; "di" -> bk.diPins.size; else -> bk.aPins.size }
             for (n in 0 until count) {
                 val insert = if (grpPort == "do") "b.do$n = 1" else "b.$grpPort$n"
-                leaf("$grpPort$n") { insertAtCursor(insert); grpPort = null; refreshSub() }
+                chip("$n") { insertAtCursor(insert); grpPort = null; refreshSub() }
             }
         }
     }
 
     private fun buildWaitSub() {
-        for (ms in listOf(100, 250, 500, 1000, 2000)) leaf("${ms}ms") { insertAtCursor("wait($ms)") }
+        for (ms in listOf(100, 250, 500, 1000, 2000)) chip("$ms") { insertAtCursor("wait($ms)") }
         // Schieberegler als Eingabe
         val label = TextView(this).apply {
-            text = "wait(500)"; setPadding(dp(12), 0, dp(8), 0)
+            text = "wait(500)"; setPadding(dp(10), 0, dp(6), 0); setTextColor(ICON)
             gravity = android.view.Gravity.CENTER_VERTICAL
         }
         val seek = SeekBar(this).apply {
             max = 2000; progress = 500
-            layoutParams = LinearLayout.LayoutParams(dp(160), LinearLayout.LayoutParams.WRAP_CONTENT)
+            layoutParams = LinearLayout.LayoutParams(dp(150), LinearLayout.LayoutParams.WRAP_CONTENT)
             // Drag im horizontalen ScrollView zulassen
             setOnTouchListener { v, _ -> v.parent?.requestDisallowInterceptTouchEvent(true); false }
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
@@ -294,28 +318,81 @@ class MainActivity : AppCompatActivity() {
         }
         paletteSub.addView(label)
         paletteSub.addView(seek)
-        leaf("einfügen") { insertAtCursor("wait(${seek.progress})") }
+        chip("einfügen") { insertAtCursor("wait(${seek.progress})") }
     }
 
-    // ---- Palette-Hilfen ----
+    // ---- Palette-Bausteine (schmal, mit Rahmen; grün wenn aktiv) ----
 
-    private fun addLeaves(vararg items: Pair<String, String>) {
-        for ((label, text) in items) leaf(label) { insertAtCursor(text) }
-    }
+    private fun iconButtonBg(active: Boolean): android.graphics.drawable.GradientDrawable =
+        android.graphics.drawable.GradientDrawable().apply {
+            cornerRadius = dp(6).toFloat()
+            setColor(if (active) 0xFFE6FBF6.toInt() else 0xFFFFFFFF.toInt())
+            setStroke(dp(1), if (active) GREEN else 0xFFCBD5E1.toInt())
+        }
 
-    private fun leaf(label: String, onClick: () -> Unit) {
-        paletteSub.addView(Button(this).apply {
-            text = label; isAllCaps = false
-            setOnClickListener { onClick() }
-        })
-    }
-
-    private fun groupButton(label: String, active: Boolean, onClick: () -> Unit): Button =
-        Button(this).apply {
-            text = label; isAllCaps = false
-            if (active) setTextColor(GREEN)
+    /** Nur-Icon-Button (Gruppen & Befehle). */
+    private fun iconButton(iconRes: Int, active: Boolean, onClick: () -> Unit): ImageButton =
+        ImageButton(this).apply {
+            setImageResource(iconRes)
+            background = iconButtonBg(active)
+            setColorFilter(if (active) GREEN else ICON)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            adjustViewBounds = true
+            minimumWidth = 0
+            setPadding(dp(7), dp(4), dp(7), dp(4))
+            layoutParams = LinearLayout.LayoutParams(dp(34), dp(30)).apply { marginEnd = dp(4) }
             setOnClickListener { onClick() }
         }
+
+    /** Port-Button: kleine Zahl/Welle oben über dem Richtungspfeil. */
+    private fun portButton(top: String, arrowRes: Int, onClick: () -> Unit): View =
+        LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = android.view.Gravity.CENTER_HORIZONTAL
+            background = iconButtonBg(false)
+            setPadding(dp(8), dp(2), dp(8), dp(2))
+            isClickable = true
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, dp(34))
+                .apply { marginEnd = dp(4) }
+            addView(TextView(this@MainActivity).apply {
+                text = top; textSize = 8f; setTextColor(ICON)
+                includeFontPadding = false; gravity = android.view.Gravity.CENTER
+            })
+            addView(ImageView(this@MainActivity).apply {
+                setImageResource(arrowRes); setColorFilter(ICON)
+                scaleType = ImageView.ScaleType.FIT_CENTER
+                layoutParams = LinearLayout.LayoutParams(dp(20), dp(13))
+            })
+            setOnClickListener { onClick() }
+        }
+
+    private fun iconLeaf(iconRes: Int, insert: String) {
+        paletteSub.addView(iconButton(iconRes, active = false) { insertAtCursor(insert) })
+    }
+
+    private fun addChips(vararg items: Pair<String, String>) {
+        for ((label, text) in items) chip(label) { insertAtCursor(text) }
+    }
+
+    /** Text-Chip im gleichen schmalen Rahmen (Operatoren, Zahlen, Wörter). */
+    private fun chip(label: String, onClick: () -> Unit): TextView =
+        TextView(this).apply {
+            text = label; textSize = 13f; setTextColor(ICON)
+            background = iconButtonBg(false)
+            setPadding(dp(8), dp(4), dp(8), dp(4))
+            gravity = android.view.Gravity.CENTER
+            isClickable = true
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, dp(30))
+                .apply { marginEnd = dp(4); gravity = android.view.Gravity.CENTER_VERTICAL }
+            setOnClickListener { onClick() }
+        }.also { paletteSub.addView(it) }
+
+    /** Start-Dreieck (links in der Werkzeugzeile): grün aktiv, grau/gedimmt aus. */
+    private fun setStartEnabled(on: Boolean) {
+        btnStart.isEnabled = on
+        btnStart.setColorFilter(if (on) GREEN else GRAY)
+        btnStart.alpha = if (on) 1f else 0.45f
+    }
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
 
@@ -375,7 +452,7 @@ class MainActivity : AppCompatActivity() {
                 log("✓ MicroPython erkannt${if (m != null) " ($m)" else ""}.")
                 runOnUiThread {
                     setStatus("● verbunden · ${selectedBoard().name}", GREEN)
-                    btnStart.isEnabled = true; btnInstall.isEnabled = false
+                    setStartEnabled(true); btnInstall.isEnabled = false
                     txtDeviceInfo.text = "Verbunden. MicroPython läuft.\nBoard: ${selectedBoard().name}" +
                         (if (m != null) "\n$m" else "")
                     if (pinnedPanel == null) showPanel(panelCode)
@@ -384,7 +461,7 @@ class MainActivity : AppCompatActivity() {
                 log("ESP32 ohne MicroPython.")
                 runOnUiThread {
                     setStatus("● ohne MicroPython", ORANGE)
-                    btnStart.isEnabled = false; btnInstall.isEnabled = true
+                    setStartEnabled(false); btnInstall.isEnabled = true
                     txtDeviceInfo.text = "ESP32 erkannt, aber kein MicroPython.\n→ »MicroPython installieren«."
                     if (pinnedPanel == null) showPanel(panelDevice)
                 }
@@ -648,5 +725,6 @@ class MainActivity : AppCompatActivity() {
         private val ORANGE = 0xFFE67E22.toInt()
         private val RED = 0xFFC0392B.toInt()
         private val GRAY = 0xFF8A93A2.toInt()
+        private val ICON = 0xFF374151.toInt()
     }
 }
