@@ -16,7 +16,7 @@ import BlockEditor, { BlockEditorHandle } from './editor/BlockEditor'
 const TAB_ORDER: BlockKind[] = ['setup', 'main', 'lib']
 const TAB_LABEL: Record<string, string> = { setup: '⚙ SETUP', main: '▶ MAIN', lib: '🧩 LIB' }
 
-// Token-Palette je Tab — identisch zur Android-App (MainActivity.buildPalette).
+// Token-Palette je Tab — gleich wie in der Android-App (MainActivity.buildPalette).
 function paletteTokens(kind: BlockKind, names: string[]): { label: string; insert: string }[] {
   if (kind === 'setup') {
     return [
@@ -36,11 +36,12 @@ function paletteTokens(kind: BlockKind, names: string[]): { label: string; inser
     { label: '❓! elif', insert: 'elif :' },
     { label: 'sonst', insert: 'else:' },
     ...(kind === 'lib' ? [{ label: '🧩 def', insert: 'def name():' }] : []),
-    { label: '⏱ sleep', insert: 'sleep_ms(100)' },
+    { label: '⏱ warte', insert: 'wait(500)' },
     { label: 'Takt', insert: 'takt = Every(300)' },
     { label: '= 1', insert: '.v = 1' },
     { label: '= 0', insert: '.v = 0' },
     { label: 'umsch.', insert: '.toggle()' },
+    { label: '🎨 Farbe', insert: '.color("rot")' },
     { label: '>', insert: ' > ' },
   ]
   return [...base, ...names.map((n) => ({ label: n, insert: n }))]
@@ -54,7 +55,6 @@ function ensurePlayground(p: Project): Project {
   return { ...p, blocks }
 }
 
-// Zugewiesene Namen (z. B. `led = LED(13)`) aus allen Tabs, für die Palette.
 function knownNamesOf(project: Project): string[] {
   const names = new Set<string>()
   const re = /^\s*([A-Za-z_]\w*)\s*=(?!=)/gm
@@ -88,7 +88,6 @@ export default function App() {
     setProject((p) => ({ ...p, blocks: p.blocks.map((b) => (b.id === id ? { ...b, ...patch } : b)) }))
   }
 
-  // Token einfügen; nach ':' automatisch einrücken (wie Android).
   function insertToken(insert: string) {
     editorRef.current?.insertText(insert)
     if (insert.replace(/\s+$/, '').endsWith(':')) editorRef.current?.newline()
@@ -114,39 +113,39 @@ export default function App() {
     URL.revokeObjectURL(url)
   }
 
+  const iconBtn =
+    'rounded-md border border-gray-300 bg-white px-2 py-1 text-xs text-gray-600 hover:text-gray-900'
+
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col bg-gray-100">
       {/* Kompakte Titelzeile (wie Android, ohne Verbindungsstatus) */}
-      <div className="flex shrink-0 items-center gap-2 border-b border-edge bg-panel px-3 py-1.5">
-        <span className="text-[15px] font-bold tracking-wide text-gray-100">RoboCode</span>
-        <span className="hidden text-[11px] text-gray-500 sm:inline">Playground</span>
+      <div className="flex shrink-0 items-center gap-2 border-b border-gray-200 bg-white px-3 py-1.5">
+        <span className="text-[15px] font-bold tracking-wide text-gray-900">RoboCode</span>
+        <span className="hidden text-[11px] text-gray-400 sm:inline">Playground</span>
         <div className="ml-auto flex items-center gap-1.5">
           <select
             value={boardId}
             onChange={(e) => setBoardId(e.target.value)}
             title="Board — bestimmt die vordefinierten Pins D.. / A.."
-            className="rounded border border-edge bg-panel2 px-1.5 py-0.5 text-xs text-gray-100"
+            className="rounded border border-gray-300 bg-white px-1.5 py-0.5 text-xs text-gray-800"
           >
             {BOARDS.map((b) => (
               <option key={b.id} value={b.id}>{b.name}</option>
             ))}
           </select>
-          <button title="Speichern" onClick={() => saveProject(project)}
-            className="rounded-md border border-edge bg-panel2 px-2 py-1 text-xs text-gray-300 hover:text-white">💾</button>
-          <button title="Laden" onClick={() => { const p = loadProject(); if (p) setProject(ensurePlayground(p)) }}
-            className="rounded-md border border-edge bg-panel2 px-2 py-1 text-xs text-gray-300 hover:text-white">📂</button>
-          <button title="Export (JSON)" onClick={handleExport}
-            className="rounded-md border border-edge bg-panel2 px-2 py-1 text-xs text-gray-300 hover:text-white">⤓</button>
+          <button title="Speichern" onClick={() => saveProject(project)} className={iconBtn}>💾</button>
+          <button title="Laden" onClick={() => { const p = loadProject(); if (p) setProject(ensurePlayground(p)) }} className={iconBtn}>📂</button>
+          <button title="Export (JSON)" onClick={handleExport} className={iconBtn}>⤓</button>
         </div>
       </div>
 
-      {/* Nav-Tabs: Code | main.py (wie Android) */}
+      {/* Nav-Tabs: Code | main.py (dunkle Leiste wie Android) */}
       <div className="flex shrink-0 bg-[#1a1f27]">
         {([['code', 'Code'], ['main', 'main.py']] as const).map(([v, label]) => (
           <button
             key={v}
             onClick={() => setView(v)}
-            className={`flex-1 py-2 text-xs font-medium ${view === v ? 'text-accent' : 'text-gray-400 hover:text-gray-200'}`}
+            className={`flex-1 py-2 text-xs font-medium ${view === v ? 'text-teal-300' : 'text-gray-400 hover:text-gray-200'}`}
           >
             {label}
           </button>
@@ -157,15 +156,15 @@ export default function App() {
       {view === 'code' && (
         <div className="flex min-h-0 flex-1 flex-col">
           {/* Sub-Tabs SETUP/MAIN/LIB */}
-          <div className="flex shrink-0 items-center gap-1 border-b border-edge bg-panel2 px-2 py-1.5">
+          <div className="flex shrink-0 items-center gap-1 border-b border-gray-200 bg-gray-100 px-2 py-1.5">
             {blocks.map((b) => (
               <button
                 key={b.kind}
                 onClick={() => setActiveKind(b.kind)}
                 className={`flex-1 rounded-md border px-3 py-1 text-xs font-medium ${
                   b.kind === activeKind
-                    ? 'border-accent bg-accent/15 text-accent'
-                    : 'border-edge bg-panel text-gray-400 hover:text-gray-200'
+                    ? 'border-teal-500 bg-teal-50 text-teal-700'
+                    : 'border-gray-300 bg-white text-gray-600 hover:text-gray-900'
                 }`}
               >
                 {TAB_LABEL[b.kind]}
@@ -174,19 +173,19 @@ export default function App() {
           </div>
 
           {/* Token-Palette (horizontal) */}
-          <div className="flex shrink-0 gap-1 overflow-x-auto border-b border-edge bg-panel2 px-2 py-1.5">
+          <div className="flex shrink-0 gap-1 overflow-x-auto border-b border-gray-200 bg-gray-100 px-2 py-1.5">
             {paletteTokens(activeKind, knownNames).map((t, i) => (
               <button
                 key={i}
                 onClick={() => insertToken(t.insert)}
-                className="shrink-0 rounded bg-panel px-2 py-1 font-mono text-[11px] text-gray-300 hover:bg-accent/15 hover:text-accent"
+                className="shrink-0 rounded border border-gray-200 bg-white px-2 py-1 font-mono text-[11px] text-gray-700 hover:bg-teal-50 hover:text-teal-700"
               >
                 {t.label}
               </button>
             ))}
           </div>
 
-          {/* Editor */}
+          {/* Editor (dunkel, wie Android) */}
           <div className="min-h-0 flex-1">
             {activeBlock && (
               <BlockEditor
@@ -204,15 +203,13 @@ export default function App() {
       {/* Panel: main.py */}
       {view === 'main' && (
         <div className="flex min-h-0 flex-1 flex-col">
-          <div className="flex shrink-0 items-center justify-between border-b border-edge bg-panel2 px-2 py-1.5">
+          <div className="flex shrink-0 items-center justify-between border-b border-gray-200 bg-gray-100 px-2 py-1.5">
             <span className="text-[11px] uppercase tracking-wide text-gray-500">
               main.py — DSL (versteckt) + SETUP + LIB + MAIN
             </span>
             <div className="flex gap-1.5">
-              <button onClick={() => navigator.clipboard?.writeText(assembled.mainPy)}
-                className="rounded-md border border-edge bg-panel2 px-2 py-1 text-[11px] text-gray-300 hover:text-white">Kopieren</button>
-              <button onClick={downloadMain}
-                className="rounded-md border border-edge bg-panel2 px-2 py-1 text-[11px] text-gray-300 hover:text-white">⤓ main.py</button>
+              <button onClick={() => navigator.clipboard?.writeText(assembled.mainPy)} className={iconBtn}>Kopieren</button>
+              <button onClick={downloadMain} className={iconBtn}>⤓ main.py</button>
             </div>
           </div>
           <pre className="min-h-0 flex-1 overflow-auto bg-[#12151b] p-3 font-mono text-[11px] leading-relaxed text-gray-200">

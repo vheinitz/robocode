@@ -203,10 +203,11 @@ class MainActivity : AppCompatActivity() {
                 add("❓! elif" to "elif :")
                 add("sonst" to "else:")
                 if (key == "lib") add("🧩 def" to "def name():")
-                add("⏱ sleep" to "sleep_ms(100)")
+                add("⏱ warte" to "wait(500)")
                 add("Takt" to "takt = Every(300)")
                 add("= 1" to ".v = 1"); add("= 0" to ".v = 0")
-                add("umsch." to ".toggle()"); add(">" to " > ")
+                add("umsch." to ".toggle()")
+                add("🎨 Farbe" to ".color(\"rot\")"); add(">" to " > ")
                 for (n in deviceNames()) add(n to n)
             }
         }

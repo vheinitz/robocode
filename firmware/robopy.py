@@ -540,6 +540,7 @@ def LED(pin, inverted=False, name=None):
 
 TASTER = BTN   # Taster = DI mit Pull-Up + invertiert + entprellt
 MOTOR = Motor  # Motor = Wrapper über zwei Ausgänge (H-Brücke)
+wait = sleep_ms  # kindgerechter Alias: wait(500) statt sleep_ms(500)
 
 
 # ===========================================================================
@@ -549,6 +550,20 @@ MOTOR = Motor  # Motor = Wrapper über zwei Ausgänge (H-Brücke)
 #   rgb.color(255, 0, 0)   # rot     (auch rgb.color(poti, 0, 0))
 #   rgb.off()
 # ===========================================================================
+
+# Farbnamen (deutsch + englisch) -> (r, g, b).
+_COLORS = {
+    "rot": (255, 0, 0), "red": (255, 0, 0),
+    "gruen": (0, 255, 0), "grün": (0, 255, 0), "green": (0, 255, 0),
+    "blau": (0, 0, 255), "blue": (0, 0, 255),
+    "gelb": (255, 255, 0), "yellow": (255, 255, 0),
+    "orange": (255, 80, 0),
+    "lila": (255, 0, 255), "magenta": (255, 0, 255),
+    "cyan": (0, 255, 255),
+    "weiss": (255, 255, 255), "weiß": (255, 255, 255), "white": (255, 255, 255),
+    "aus": (0, 0, 0), "schwarz": (0, 0, 0), "off": (0, 0, 0), "black": (0, 0, 0),
+}
+
 
 class _Rgb:
     def __init__(self, pin, n=1, name=None):
@@ -563,7 +578,10 @@ class _Rgb:
         else:
             self._np = None  # am PC nur gemerkt, keine echte LED
 
-    def color(self, r, g, b):
+    def color(self, r, g=None, b=None):
+        # Farbname (rgb.color("rot")) ODER drei Zahlen (rgb.color(255, 0, 0)).
+        if isinstance(r, str):
+            r, g, b = _COLORS.get(r.lower(), (0, 0, 0))
         self._last = (int(_val(r)) & 255, int(_val(g)) & 255, int(_val(b)) & 255)
         if not SIM:
             for i in range(self._n):
