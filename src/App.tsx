@@ -13,9 +13,9 @@ import { BOARDS, getBoard } from './hw/boards'
 import BlockEditor, { BlockEditorHandle } from './editor/BlockEditor'
 import { Icon } from './editor/icons'
 
-// Drei feste Code-Tabs (wie in der Android-App).
+// Feste Code-Container; sichtbar ist (wie in der Android-App) nur MAIN.
+// SETUP/LIB bleiben als Seed erhalten und werden mitassembliert.
 const TAB_ORDER: BlockKind[] = ['setup', 'main', 'lib']
-const TAB_LABEL: Record<string, string> = { setup: 'SETUP', main: 'MAIN', lib: 'LIB' }
 
 // Icon-Tokens für MAIN/LIB (keine Emojis, keine Wörter — Bedeutung in der Hilfe).
 interface IconTok {
@@ -40,18 +40,57 @@ function toolTokens(kind: BlockKind): IconTok[] {
   ]
 }
 
-// SETUP: eigene Geräte benennen (selten nötig, da Board b vordefiniert ist).
-// Kurze Code-Kürzel statt Emojis.
-const SETUP_TOKENS: { label: string; insert: string }[] = [
-  { label: 'DI', insert: 'eingang = DI(4)' },
-  { label: 'DO', insert: 'ausgang = DO(5)' },
-  { label: 'AI', insert: 'poti = AI(0)' },
-  { label: 'AO', insert: 'dimmer = AO(5)' },
-  { label: 'LED', insert: 'led = LED(13)' },
-  { label: 'RGB', insert: 'rgb = RGB(2)' },
-  { label: 'Taster', insert: 'taster = TASTER(2)' },
-  { label: 'Motor', insert: 'motor = MOTOR(6, 7)' },
+// Aufklappbare Palette (wie Android): oben die Gruppen, Klick klappt die
+// passende Unterzeile auf. Board = 3 Ebenen (do/di/a → Zahl); Warte = feste
+// Zeiten + Schieberegler; die übrigen Gruppen haben feste Einträge (LEAVES).
+type Grp = 'board' | 'kontrolle' | 'operator' | 'warte' | 'seriell' | 'mehr'
+const GROUPS: { key: Grp; icon: string; title: string }[] = [
+  { key: 'board', icon: 'chip', title: 'Board – Ausgänge/Eingänge (do/di/a)' },
+  { key: 'kontrolle', icon: 'while', title: 'Kontrolle – Schleifen & Verzweigungen' },
+  { key: 'operator', icon: 'gt', title: 'Operatoren – vergleichen & rechnen' },
+  { key: 'warte', icon: 'wait', title: 'Warten – feste Zeit oder Schieberegler' },
+  { key: 'seriell', icon: 'log', title: 'Seriell – Text zum Terminal senden' },
+  { key: 'mehr', icon: 'every', title: 'Mehr – Takt, Umschalten, Farbe' },
 ]
+interface Leaf {
+  icon?: string
+  label?: string
+  insert: string
+  help: string
+}
+const LEAVES: Record<Exclude<Grp, 'board' | 'warte'>, Leaf[]> = {
+  kontrolle: [
+    { icon: 'while', insert: 'while True:', help: 'Schleife – wiederholt den eingerückten Block' },
+    { icon: 'for', insert: 'for i in range(10):', help: 'Zähl-Schleife – i läuft von 0 bis 9' },
+    { icon: 'if', insert: 'if :', help: 'Wenn … dann' },
+    { icon: 'elif', insert: 'elif :', help: 'Sonst wenn …' },
+    { icon: 'else', insert: 'else:', help: 'Sonst' },
+    { icon: 'def', insert: 'def name():', help: 'Eigene Funktion' },
+  ],
+  operator: [
+    { label: '>', insert: ' > ', help: 'größer als' },
+    { label: '<', insert: ' < ', help: 'kleiner als' },
+    { label: '>=', insert: ' >= ', help: 'größer oder gleich' },
+    { label: '<=', insert: ' <= ', help: 'kleiner oder gleich' },
+    { label: '==', insert: ' == ', help: 'gleich (Vergleich)' },
+    { label: '=', insert: ' = ', help: 'zuweisen' },
+    { label: '+', insert: ' + ', help: 'plus' },
+    { label: '-', insert: ' - ', help: 'minus' },
+    { label: 'und', insert: ' and ', help: 'und (beide wahr)' },
+    { label: 'oder', insert: ' or ', help: 'oder (eins wahr)' },
+    { label: 'nicht', insert: 'not ', help: 'nicht (umkehren)' },
+  ],
+  seriell: [
+    { icon: 'log', insert: 'log("Hallo")', help: 'Text senden – erscheint im Terminal der App' },
+    { label: 'log x', insert: 'log("Wert:", )', help: 'Text und einen Wert senden' },
+  ],
+  mehr: [
+    { icon: 'every', insert: 'takt = Every(300)', help: 'Takt – alle n ms, ohne zu blockieren' },
+    { icon: 'toggle', insert: '.toggle()', help: 'Ausgang umschalten' },
+    { icon: 'color', insert: '.color("rot")', help: 'RGB-Farbe setzen' },
+  ],
+}
+const WAIT_PRESETS = [100, 250, 500, 1000, 2000]
 
 // Legende für die Hilfe: Icon → Bedeutung (Werkzeuge + Ports + Board).
 const PORT_HELP: { icon: string; title: string; help: string }[] = [
@@ -84,11 +123,14 @@ export default function App() {
     () => ensurePlayground(loadProject() ?? createPlaygroundProject()),
   )
   const blocks = TAB_ORDER.map((k) => project.blocks.find((b) => b.kind === k)!).filter(Boolean)
-  const [activeKind, setActiveKind] = useState<BlockKind>('setup')
+  // Nur MAIN sichtbar (wie Android). SETUP/LIB bleiben als Seed im Projekt.
+  const activeKind: BlockKind = 'main'
   const [view, setView] = useState<'code' | 'main'>('code')
   const [boardId, setBoardId] = useState<string>(BOARDS[0].id)
-  const [portKind, setPortKind] = useState<null | 'do' | 'di' | 'a'>(null)
-  const [pickerOpen, setPickerOpen] = useState(false)
+  // Aufklappbare Palette: aktive Gruppe, (bei Board) do/di/a-Ebene, Warte-Wert.
+  const [grp, setGrp] = useState<null | Grp>(null)
+  const [grpPort, setGrpPort] = useState<null | 'do' | 'di' | 'a'>(null)
+  const [waitMs, setWaitMs] = useState(500)
   const [showHelp, setShowHelp] = useState(false)
 
   const editorRef = useRef<BlockEditorHandle | null>(null)
@@ -117,10 +159,10 @@ export default function App() {
     return k === 'do' ? banks.do.length : k === 'di' ? banks.di.length : banks.a.length
   }
   function pickPortNumber(n: number) {
-    const insert = portKind === 'do' ? `b.do${n} = 1` : portKind === 'di' ? `b.di${n}` : `b.a${n}`
+    const insert = grpPort === 'do' ? `b.do${n} = 1` : grpPort === 'di' ? `b.di${n}` : `b.a${n}`
     insertToken(insert)
-    setPortKind(null)
-    setPickerOpen(false)
+    setGrpPort(null)
+    setGrp(null)
   }
 
   function handleExport() {
@@ -185,96 +227,24 @@ export default function App() {
       {/* Panel: CODE */}
       {view === 'code' && (
         <div className="flex min-h-0 flex-1 flex-col">
-          {/* Sub-Tabs SETUP/MAIN/LIB */}
-          <div className="flex shrink-0 items-center gap-1 border-b border-gray-200 bg-gray-100 px-2 py-1.5">
-            {blocks.map((b) => (
-              <button
-                key={b.kind}
-                onClick={() => setActiveKind(b.kind)}
-                className={`flex-1 rounded-md border px-3 py-1 text-xs font-medium ${
-                  b.kind === activeKind
-                    ? 'border-teal-500 bg-teal-50 text-teal-700'
-                    : 'border-gray-300 bg-white text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                {TAB_LABEL[b.kind]}
-              </button>
-            ))}
-          </div>
-
-          {/* Board-Ports: Chip → do/di/a → Zahl (nur ausserhalb SETUP). */}
-          {activeKind !== 'setup' && (
-            <div className="flex shrink-0 flex-wrap items-center gap-1 border-b border-gray-200 bg-white px-2 py-1.5">
-              <button
-                title="Board-Ports einfügen"
-                onClick={() => { setPickerOpen((o) => !o); setPortKind(null) }}
-                className={`inline-flex items-center justify-center rounded border px-2 py-1 ${
-                  pickerOpen ? 'border-teal-500 bg-teal-50 text-teal-700' : 'border-gray-300 bg-white text-gray-700 hover:border-teal-400'
-                }`}
-              >
-                <Icon name="chip" />
-              </button>
-              {pickerOpen && <span className="text-gray-300">›</span>}
-              {pickerOpen &&
-                (['do', 'di', 'a'] as const).map((k) => (
-                  <button
-                    key={k}
-                    title={k === 'do' ? 'Ausgang  b.doN = 1' : k === 'di' ? 'Eingang  b.diN' : 'Analog  b.aN'}
-                    onClick={() => setPortKind((p) => (p === k ? null : k))}
-                    className={`inline-flex items-center justify-center rounded border px-2 py-1 ${
-                      portKind === k ? 'border-teal-500 bg-teal-50 text-teal-700' : 'border-gray-300 bg-white text-gray-700 hover:border-teal-400'
-                    }`}
-                  >
-                    <Icon name={k} />
-                  </button>
-                ))}
-              {pickerOpen && portKind && <span className="text-gray-300">›</span>}
-              {pickerOpen && portKind &&
-                Array.from({ length: portSize(portKind) }, (_, n) => (
-                  <button
-                    key={n}
-                    onClick={() => pickPortNumber(n)}
-                    className="rounded border border-teal-300 bg-teal-50 px-2.5 py-1 font-mono text-[12px] font-semibold text-teal-700 hover:bg-teal-100"
-                  >
-                    {n}
-                  </button>
-                ))}
-            </div>
-          )}
-
-          {/* Token-Palette (Icons für MAIN/LIB, Textkürzel für SETUP) + Undo & Hilfe */}
+          {/* Palette – Gruppen (Klick klappt die passende Unterzeile auf) */}
           <div className="flex shrink-0 items-center gap-1 border-b border-gray-200 bg-gray-100 px-2 py-1.5">
             <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto">
-              {activeKind === 'setup'
-                ? SETUP_TOKENS.map((t, i) => (
-                    <button
-                      key={i}
-                      onClick={() => insertToken(t.insert)}
-                      className="shrink-0 rounded border border-gray-200 bg-white px-2 py-1 font-mono text-[11px] text-gray-700 hover:bg-teal-50 hover:text-teal-700"
-                    >
-                      {t.label}
-                    </button>
-                  ))
-                : toolTokens(activeKind).map((t, i) => (
-                    <button
-                      key={i}
-                      title={t.help}
-                      onClick={() => insertToken(t.insert)}
-                      className="inline-flex shrink-0 items-center justify-center rounded border border-gray-200 bg-white px-2 py-1 text-gray-700 hover:border-teal-400 hover:bg-teal-50 hover:text-teal-700"
-                    >
-                      <Icon name={t.icon} />
-                    </button>
-                  ))}
-              {/* Vom Kind benannte Variablen als Text-Chips */}
-              {knownNames.map((n) => (
-                <button
-                  key={n}
-                  onClick={() => insertToken(n)}
-                  className="shrink-0 rounded border border-gray-200 bg-white px-2 py-1 font-mono text-[11px] text-gray-500 hover:bg-teal-50 hover:text-teal-700"
-                >
-                  {n}
-                </button>
-              ))}
+              {GROUPS.map((g) => {
+                const active = grp === g.key
+                return (
+                  <button
+                    key={g.key}
+                    title={g.title}
+                    onClick={() => { setGrp(active ? null : g.key); setGrpPort(null) }}
+                    className={`inline-flex shrink-0 items-center justify-center rounded border px-2.5 py-1 ${
+                      active ? 'border-teal-500 bg-teal-50 text-teal-700' : 'border-gray-300 bg-white text-gray-700 hover:border-teal-400'
+                    }`}
+                  >
+                    <Icon name={g.icon} />
+                  </button>
+                )
+              })}
             </div>
             {/* Feste Werkzeuge rechts: Rückgängig & Hilfe */}
             <button
@@ -292,6 +262,112 @@ export default function App() {
               <Icon name="help" />
             </button>
           </div>
+
+          {/* Palette – aufgeklappte Unterzeile zur gewählten Gruppe */}
+          {grp && (
+            <div className="flex shrink-0 flex-wrap items-center gap-1 overflow-x-auto border-b border-gray-200 bg-white px-2 py-1.5">
+              {/* Board: do/di/a → Zahl */}
+              {grp === 'board' && !grpPort &&
+                (['do', 'di', 'a'] as const).map((k) => (
+                  <button
+                    key={k}
+                    title={k === 'do' ? 'Ausgang  b.doN = 1' : k === 'di' ? 'Eingang  b.diN' : 'Analog  b.aN'}
+                    onClick={() => setGrpPort(k)}
+                    className="inline-flex shrink-0 items-center justify-center rounded border border-gray-300 bg-white px-2 py-1 text-gray-700 hover:border-teal-400 hover:bg-teal-50 hover:text-teal-700"
+                  >
+                    <Icon name={k} />
+                  </button>
+                ))}
+              {grp === 'board' && grpPort && (
+                <>
+                  <button
+                    title="zurück"
+                    onClick={() => setGrpPort(null)}
+                    className="shrink-0 rounded border border-gray-300 bg-white px-2 py-1 text-gray-500 hover:text-gray-900"
+                  >
+                    ‹
+                  </button>
+                  {Array.from({ length: portSize(grpPort) }, (_, n) => (
+                    <button
+                      key={n}
+                      onClick={() => pickPortNumber(n)}
+                      className="shrink-0 rounded border border-teal-300 bg-teal-50 px-2.5 py-1 font-mono text-[12px] font-semibold text-teal-700 hover:bg-teal-100"
+                    >
+                      {n}
+                    </button>
+                  ))}
+                </>
+              )}
+
+              {/* Warte: feste Zeiten + Schieberegler */}
+              {grp === 'warte' && (
+                <>
+                  {WAIT_PRESETS.map((ms) => (
+                    <button
+                      key={ms}
+                      onClick={() => insertToken(`wait(${ms})`)}
+                      className="shrink-0 rounded border border-teal-300 bg-teal-50 px-2.5 py-1 font-mono text-[12px] font-semibold text-teal-700 hover:bg-teal-100"
+                    >
+                      {ms}
+                    </button>
+                  ))}
+                  <span className="px-1 text-gray-300">|</span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={2000}
+                    step={50}
+                    value={waitMs}
+                    onChange={(e) => setWaitMs(Number(e.target.value))}
+                    className="h-1 w-28 shrink-0 accent-teal-600"
+                  />
+                  <span className="shrink-0 font-mono text-[11px] tabular-nums text-gray-600">wait({waitMs})</span>
+                  <button
+                    onClick={() => insertToken(`wait(${waitMs})`)}
+                    className="shrink-0 rounded border border-teal-300 bg-teal-50 px-2 py-1 text-[12px] text-teal-700 hover:bg-teal-100"
+                  >
+                    einfügen
+                  </button>
+                </>
+              )}
+
+              {/* Kontrolle / Operator / Seriell / Mehr: feste Einträge */}
+              {grp !== 'board' && grp !== 'warte' &&
+                LEAVES[grp].map((lf, i) =>
+                  lf.icon ? (
+                    <button
+                      key={i}
+                      title={lf.help}
+                      onClick={() => insertToken(lf.insert)}
+                      className="inline-flex shrink-0 items-center justify-center rounded border border-gray-200 bg-white px-2 py-1 text-gray-700 hover:border-teal-400 hover:bg-teal-50 hover:text-teal-700"
+                    >
+                      <Icon name={lf.icon} />
+                    </button>
+                  ) : (
+                    <button
+                      key={i}
+                      title={lf.help}
+                      onClick={() => insertToken(lf.insert)}
+                      className="shrink-0 rounded border border-gray-200 bg-white px-2 py-1 font-mono text-[12px] text-gray-700 hover:bg-teal-50 hover:text-teal-700"
+                    >
+                      {lf.label}
+                    </button>
+                  ),
+                )}
+
+              {/* In „Mehr": vom Kind benannte Variablen als Text-Chips */}
+              {grp === 'mehr' &&
+                knownNames.map((n) => (
+                  <button
+                    key={n}
+                    onClick={() => insertToken(n)}
+                    className="shrink-0 rounded border border-gray-200 bg-white px-2 py-1 font-mono text-[11px] text-gray-500 hover:bg-teal-50 hover:text-teal-700"
+                  >
+                    {n}
+                  </button>
+                ))}
+            </div>
+          )}
 
           {/* Editor (dunkel, wie Android) */}
           <div className="min-h-0 flex-1">
