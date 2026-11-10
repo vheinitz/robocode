@@ -140,8 +140,8 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor(
       const sel = view.state.selection.main
       const line = view.state.doc.lineAt(sel.head)
       const base = (line.text.match(/^(\s*)/)?.[1]) ?? ''
-      // Nach ':' eine Ebene tiefer einruecken.
-      const deeper = /:\s*$/.test(line.text.replace(/#.*$/, '')) ? '  ' : ''
+      // Nach ':' eine Ebene tiefer einruecken (4 Leerzeichen, wie im Seed/PEP 8).
+      const deeper = /:\s*$/.test(line.text.replace(/#.*$/, '')) ? '    ' : ''
       const insert = '\n' + base + deeper
       view.dispatch({
         changes: { from: sel.from, to: sel.to, insert },

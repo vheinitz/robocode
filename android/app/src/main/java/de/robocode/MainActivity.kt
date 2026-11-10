@@ -208,6 +208,11 @@ class MainActivity : AppCompatActivity() {
                 add("= 1" to ".v = 1"); add("= 0" to ".v = 0")
                 add("umsch." to ".toggle()")
                 add("🎨 Farbe" to ".color(\"rot\")"); add(">" to " > ")
+                // Arduino-Baenke (direkt): Ausgang DO<n>(1), Eingang DI<n>()/A<n>()
+                val bk = selectedBoard().banks
+                bk.doPins.indices.forEach { add("DO$it" to "DO$it(1)") }
+                bk.diPins.indices.forEach { add("DI$it" to "DI$it()") }
+                bk.aPins.indices.forEach { add("A$it" to "A$it()") }
                 for (n in deviceNames()) add(n to n)
             }
         }
@@ -481,18 +486,17 @@ class MainActivity : AppCompatActivity() {
     // ---------------- Seeds ----------------
 
     private fun seedSetup() = listOf(
-        "# Onboard-LED am ESP32-C3",
-        "led = DO(8)        # viele C3-Boards: einfache LED an GPIO8",
-        "# rgb = RGB(2)     # Boards mit WS2812 stattdessen so",
+        "# Die Pins sind schon da: DO0..5, DI0..1, A0..4",
+        "# (hier nur noetig, wenn du eigene Geraete benennen willst)",
     ).joinToString("\n")
 
     private fun seedMain() = listOf(
-        "# Blinken — ohne Taster",
+        "# Blinken mit der Onboard-LED (DO3 = GPIO8)",
         "while True:",
-        "    led.v = 1",
-        "    sleep_ms(500)",
-        "    led.v = 0",
-        "    sleep_ms(500)",
+        "    DO3(1)         # an",
+        "    wait(500)",
+        "    DO3(0)         # aus",
+        "    wait(500)",
     ).joinToString("\n")
 
     private fun seedLib() = listOf("# Eigene Funktionen (hier nichts nötig)").joinToString("\n")

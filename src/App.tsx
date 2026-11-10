@@ -73,6 +73,7 @@ export default function App() {
   const [activeKind, setActiveKind] = useState<BlockKind>('setup')
   const [view, setView] = useState<'code' | 'main'>('code')
   const [boardId, setBoardId] = useState<string>(BOARDS[0].id)
+  const [bank, setBank] = useState<null | 'DO' | 'DI' | 'A'>(null)
 
   const editorRef = useRef<BlockEditorHandle | null>(null)
 
@@ -91,6 +92,18 @@ export default function App() {
   function insertToken(insert: string) {
     editorRef.current?.insertText(insert)
     if (insert.replace(/\s+$/, '').endsWith(':')) editorRef.current?.newline()
+  }
+
+  // Arduino-Baenke: DO/DI/A -> Zahl. Ausgang schreiben per Aufruf DO<n>(1),
+  // Eingang lesen per Aufruf DI<n>() / A<n>() (nacktes = geht in Python nicht).
+  const banks = getBoard(boardId).banks
+  function bankSize(b: 'DO' | 'DI' | 'A'): number {
+    return b === 'DO' ? banks.do.length : b === 'DI' ? banks.di.length : banks.a.length
+  }
+  function pickBankNumber(n: number) {
+    const insert = bank === 'DO' ? `DO${n}(1)` : bank === 'DI' ? `DI${n}()` : `A${n}()`
+    insertToken(insert)
+    setBank(null)
   }
 
   function handleExport() {
@@ -171,6 +184,39 @@ export default function App() {
               </button>
             ))}
           </div>
+
+          {/* Pin-Bänke: DO/DI/A → Zahl (nur ausserhalb SETUP; Pins sind vordefiniert) */}
+          {activeKind !== 'setup' && (
+            <div className="flex shrink-0 flex-wrap items-center gap-1 border-b border-gray-200 bg-white px-2 py-1.5">
+              <span className="mr-0.5 text-[10px] uppercase tracking-wide text-gray-400">Pins</span>
+              {(['DO', 'DI', 'A'] as const).map((b) => (
+                <button
+                  key={b}
+                  onClick={() => setBank(bank === b ? null : b)}
+                  title={b === 'DO' ? 'Ausgang: DO<n>(1)' : b === 'DI' ? 'Eingang: DI<n>()' : 'Analog: A<n>()'}
+                  className={`rounded border px-2 py-1 font-mono text-[11px] ${
+                    bank === b
+                      ? 'border-teal-500 bg-teal-50 text-teal-700'
+                      : 'border-gray-200 bg-white text-gray-700 hover:bg-teal-50'
+                  }`}
+                >
+                  {b === 'DO' ? '📤 DO' : b === 'DI' ? '📥 DI' : '🎚️ A'}
+                </button>
+              ))}
+              {bank && <span className="mx-0.5 text-gray-300">▸</span>}
+              {bank &&
+                Array.from({ length: bankSize(bank) }, (_, n) => (
+                  <button
+                    key={n}
+                    onClick={() => pickBankNumber(n)}
+                    className="rounded border border-teal-300 bg-teal-50 px-2.5 py-1 font-mono text-[11px] font-semibold text-teal-700 hover:bg-teal-100"
+                  >
+                    {bank}
+                    {n}
+                  </button>
+                ))}
+            </div>
+          )}
 
           {/* Token-Palette (horizontal) */}
           <div className="flex shrink-0 gap-1 overflow-x-auto border-b border-gray-200 bg-gray-100 px-2 py-1.5">

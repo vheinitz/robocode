@@ -85,8 +85,8 @@ export function createPlaygroundProject(): Project {
         kind: 'setup',
         enabled: true,
         code: [
-          '# Onboard-RGB-LED (WS2812) am ESP32-C3',
-          'rgb = RGB(2)       # 🌈 WS2812 an GPIO2',
+          '# Die Pins sind schon da: DO0..5, DI0..1, A0..4',
+          '# (hier nur noetig, wenn du eigene Geraete benennen willst)',
         ].join('\n'),
       },
       {
@@ -95,12 +95,12 @@ export function createPlaygroundProject(): Project {
         kind: 'main',
         enabled: true,
         code: [
-          '# Blinken — ohne Taster',
-          'while True:                # 🔁',
-          '    rgb.color(0, 0, 255)   # 🌈 an (blau)',
-          '    sleep_ms(500)          # ⏱️',
-          '    rgb.off()              # 🌈 aus',
-          '    sleep_ms(500)          # ⏱️',
+          '# Blinken mit der Onboard-LED (DO3 = GPIO8)',
+          'while True:        # 🔁',
+          '    DO3(1)         # 📤 an',
+          '    wait(500)      # ⏱️',
+          '    DO3(0)         # 📤 aus',
+          '    wait(500)      # ⏱️',
         ].join('\n'),
       },
       {
