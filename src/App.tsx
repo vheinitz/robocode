@@ -228,7 +228,7 @@ export default function App() {
       {view === 'code' && (
         <div className="flex min-h-0 flex-1 flex-col">
           {/* Palette – Gruppen (Klick klappt die passende Unterzeile auf) */}
-          <div className="flex shrink-0 items-center gap-1 border-b border-gray-200 bg-gray-100 px-2 py-1.5">
+          <div className="flex shrink-0 items-center gap-1 border-b border-gray-200 bg-gray-100 px-1.5 py-1">
             <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto">
               {GROUPS.map((g) => {
                 const active = grp === g.key
@@ -237,7 +237,7 @@ export default function App() {
                     key={g.key}
                     title={g.title}
                     onClick={() => { setGrp(active ? null : g.key); setGrpPort(null) }}
-                    className={`inline-flex shrink-0 items-center justify-center rounded border px-2.5 py-1 ${
+                    className={`inline-flex shrink-0 items-center justify-center rounded border px-2 py-0.5 ${
                       active ? 'border-teal-500 bg-teal-50 text-teal-700' : 'border-gray-300 bg-white text-gray-700 hover:border-teal-400'
                     }`}
                   >
@@ -250,14 +250,14 @@ export default function App() {
             <button
               title="Rückgängig"
               onClick={() => editorRef.current?.undo()}
-              className="inline-flex shrink-0 items-center justify-center rounded border border-gray-300 bg-white px-2 py-1 text-gray-700 hover:border-teal-400 hover:text-teal-700"
+              className="inline-flex shrink-0 items-center justify-center rounded border border-gray-300 bg-white px-1.5 py-0.5 text-gray-700 hover:border-teal-400 hover:text-teal-700"
             >
               <Icon name="undo" />
             </button>
             <button
               title="Was bedeuten die Symbole?"
               onClick={() => setShowHelp(true)}
-              className="inline-flex shrink-0 items-center justify-center rounded border border-gray-300 bg-white px-2 py-1 text-gray-700 hover:border-teal-400 hover:text-teal-700"
+              className="inline-flex shrink-0 items-center justify-center rounded border border-gray-300 bg-white px-1.5 py-0.5 text-gray-700 hover:border-teal-400 hover:text-teal-700"
             >
               <Icon name="help" />
             </button>
@@ -265,7 +265,7 @@ export default function App() {
 
           {/* Palette – aufgeklappte Unterzeile zur gewählten Gruppe */}
           {grp && (
-            <div className="flex shrink-0 flex-wrap items-center gap-1 overflow-x-auto border-b border-gray-200 bg-white px-2 py-1.5">
+            <div className="flex shrink-0 flex-wrap items-center gap-1 overflow-x-auto border-b border-gray-200 bg-white px-1.5 py-1">
               {/* Board: do/di/a → Zahl */}
               {grp === 'board' && !grpPort &&
                 (['do', 'di', 'a'] as const).map((k) => (
@@ -273,7 +273,7 @@ export default function App() {
                     key={k}
                     title={k === 'do' ? 'Ausgang  b.doN = 1' : k === 'di' ? 'Eingang  b.diN' : 'Analog  b.aN'}
                     onClick={() => setGrpPort(k)}
-                    className="inline-flex shrink-0 items-center justify-center rounded border border-gray-300 bg-white px-2 py-1 text-gray-700 hover:border-teal-400 hover:bg-teal-50 hover:text-teal-700"
+                    className="inline-flex shrink-0 items-center justify-center rounded border border-gray-300 bg-white px-1.5 py-0.5 text-gray-700 hover:border-teal-400 hover:bg-teal-50 hover:text-teal-700"
                   >
                     <Icon name={k} />
                   </button>
@@ -283,7 +283,7 @@ export default function App() {
                   <button
                     title="zurück"
                     onClick={() => setGrpPort(null)}
-                    className="shrink-0 rounded border border-gray-300 bg-white px-2 py-1 text-gray-500 hover:text-gray-900"
+                    className="shrink-0 rounded border border-gray-300 bg-white px-1.5 py-0.5 text-gray-500 hover:text-gray-900"
                   >
                     ‹
                   </button>
@@ -291,7 +291,7 @@ export default function App() {
                     <button
                       key={n}
                       onClick={() => pickPortNumber(n)}
-                      className="shrink-0 rounded border border-teal-300 bg-teal-50 px-2.5 py-1 font-mono text-[12px] font-semibold text-teal-700 hover:bg-teal-100"
+                      className="shrink-0 rounded border border-teal-300 bg-teal-50 px-2 py-0.5 font-mono text-[12px] font-semibold text-teal-700 hover:bg-teal-100"
                     >
                       {n}
                     </button>
@@ -306,7 +306,7 @@ export default function App() {
                     <button
                       key={ms}
                       onClick={() => insertToken(`wait(${ms})`)}
-                      className="shrink-0 rounded border border-teal-300 bg-teal-50 px-2.5 py-1 font-mono text-[12px] font-semibold text-teal-700 hover:bg-teal-100"
+                      className="shrink-0 rounded border border-teal-300 bg-teal-50 px-2 py-0.5 font-mono text-[12px] font-semibold text-teal-700 hover:bg-teal-100"
                     >
                       {ms}
                     </button>
@@ -324,7 +324,7 @@ export default function App() {
                   <span className="shrink-0 font-mono text-[11px] tabular-nums text-gray-600">wait({waitMs})</span>
                   <button
                     onClick={() => insertToken(`wait(${waitMs})`)}
-                    className="shrink-0 rounded border border-teal-300 bg-teal-50 px-2 py-1 text-[12px] text-teal-700 hover:bg-teal-100"
+                    className="shrink-0 rounded border border-teal-300 bg-teal-50 px-1.5 py-0.5 text-[12px] text-teal-700 hover:bg-teal-100"
                   >
                     einfügen
                   </button>
@@ -339,7 +339,7 @@ export default function App() {
                       key={i}
                       title={lf.help}
                       onClick={() => insertToken(lf.insert)}
-                      className="inline-flex shrink-0 items-center justify-center rounded border border-gray-200 bg-white px-2 py-1 text-gray-700 hover:border-teal-400 hover:bg-teal-50 hover:text-teal-700"
+                      className="inline-flex shrink-0 items-center justify-center rounded border border-gray-200 bg-white px-1.5 py-0.5 text-gray-700 hover:border-teal-400 hover:bg-teal-50 hover:text-teal-700"
                     >
                       <Icon name={lf.icon} />
                     </button>
@@ -348,7 +348,7 @@ export default function App() {
                       key={i}
                       title={lf.help}
                       onClick={() => insertToken(lf.insert)}
-                      className="shrink-0 rounded border border-gray-200 bg-white px-2 py-1 font-mono text-[12px] text-gray-700 hover:bg-teal-50 hover:text-teal-700"
+                      className="shrink-0 rounded border border-gray-200 bg-white px-1.5 py-0.5 font-mono text-[12px] text-gray-700 hover:bg-teal-50 hover:text-teal-700"
                     >
                       {lf.label}
                     </button>
@@ -361,7 +361,7 @@ export default function App() {
                   <button
                     key={n}
                     onClick={() => insertToken(n)}
-                    className="shrink-0 rounded border border-gray-200 bg-white px-2 py-1 font-mono text-[11px] text-gray-500 hover:bg-teal-50 hover:text-teal-700"
+                    className="shrink-0 rounded border border-gray-200 bg-white px-1.5 py-0.5 font-mono text-[11px] text-gray-500 hover:bg-teal-50 hover:text-teal-700"
                   >
                     {n}
                   </button>

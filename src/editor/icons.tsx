@@ -84,24 +84,27 @@ const P: Record<string, JSX.Element> = {
       <path d="M11.5 14.5H17" />
     </>
   ),
-  // Ports
+  // Ports — kein Kreis. Zahlen/Welle klein oben, Pfeil zeigt die Richtung:
+  // raus (→) = Ausgang, rein (←) = Eingang.
   do: (
     <>
-      <circle cx="6.5" cy="12" r="2.6" />
-      <path d="M9.1 12H20" />
-      <path d="M16 8l4 4-4 4" />
+      <text x="12" y="9" fontSize="8" textAnchor="middle" fill="currentColor" stroke="none" fontFamily="ui-monospace, SFMono-Regular, monospace">1/0</text>
+      <path d="M4 16h11" />
+      <path d="M13 13l3 3-3 3" />
     </>
   ),
   di: (
     <>
-      <path d="M3 12h10.5" />
-      <path d="M10 8l4 4-4 4" />
-      <circle cx="19" cy="12" r="2.6" />
+      <text x="12" y="9" fontSize="8" textAnchor="middle" fill="currentColor" stroke="none" fontFamily="ui-monospace, SFMono-Regular, monospace">1/0</text>
+      <path d="M20 16H9" />
+      <path d="M11 13l-3 3 3 3" />
     </>
   ),
   a: (
     <>
-      <path d="M2.5 12c2.3-6 4.2-6 5.7 0s3.4 6 5 0 3.4-6 5.3 0" />
+      <path d="M6 7.5c1.1-1.9 2.2-1.9 3.3 0s2.2 1.9 3.3 0" />
+      <path d="M20 16H9" />
+      <path d="M11 13l-3 3 3 3" />
     </>
   ),
   chip: (
@@ -109,6 +112,12 @@ const P: Record<string, JSX.Element> = {
       <rect x="6" y="6" width="12" height="12" rx="1.6" />
       <rect x="9.5" y="9.5" width="5" height="5" rx="1" />
       <path d="M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3" />
+    </>
+  ),
+  // Start / Ausführen — gefülltes Dreieck (Play)
+  start: (
+    <>
+      <path d="M7 5l12 7-12 7z" fill="currentColor" stroke="currentColor" />
     </>
   ),
   // Werkzeuge
