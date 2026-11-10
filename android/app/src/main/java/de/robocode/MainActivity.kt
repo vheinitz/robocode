@@ -134,6 +134,7 @@ class MainActivity : AppCompatActivity() {
         }
         findViewById<Button>(R.id.btnDownloadMain).setOnClickListener { downloadMain() }
         findViewById<Button>(R.id.btnClearLog).setOnClickListener { logView.text = "" }
+        findViewById<Button>(R.id.btnInfo).setOnClickListener { onInfo() }
 
         editor.addTextChangedListener(object : TextWatcher {
             override fun afterTextChanged(s: Editable?) { if (!suppressWatcher) tabs[active] = s?.toString() ?: "" }
@@ -165,6 +166,7 @@ class MainActivity : AppCompatActivity() {
         "device" -> showPanel(panelDevice)
         "main" -> { refreshMainPy(); showPanel(panelMain) }
         "log" -> showPanel(panelLog)
+        "info" -> { showPanel(panelDevice); onInfo() }
         else -> showPanel(panelCode)
     }
 
@@ -395,6 +397,33 @@ class MainActivity : AppCompatActivity() {
             log("main.py gespeichert: ${f.absolutePath}")
             toast("gespeichert: ${f.absolutePath}")
         } catch (e: Exception) { log("Speichern fehlgeschlagen: ${e.message}") }
+    }
+
+    // ---------------- Info & Lizenzen ----------------
+
+    private fun onInfo() {
+        val mpy = try {
+            assets.open("licenses/micropython-LICENSE.txt").use { String(it.readBytes(), Charsets.UTF_8) }
+        } catch (e: Exception) { "(MicroPython-Lizenz nicht gefunden: ${e.message})" }
+        val text = buildString {
+            append("RoboCode — mobile MicroPython-IDE für ESP32.\n\n")
+            append("Verwendete Drittkomponenten:\n\n")
+            append("• MicroPython (als Firmware eingebettet) — MIT-Lizenz, micropython.org\n")
+            append("• usb-serial-for-android (USB-CDC) — MIT-Lizenz, github.com/mik3y/usb-serial-for-android\n\n")
+            append("────────────────────────────────────\n")
+            append("MicroPython — Lizenz (v1.29.0):\n\n")
+            append(mpy)
+        }
+        val scroll = ScrollView(this)
+        scroll.addView(TextView(this).apply {
+            this.text = text
+            textSize = 11f
+            setTextIsSelectable(true)
+            typeface = android.graphics.Typeface.MONOSPACE
+            setPadding(24, 24, 24, 24)
+        })
+        AlertDialog.Builder(this).setTitle("Info & Lizenzen").setView(scroll)
+            .setPositiveButton("Schließen", null).show()
     }
 
     // ---------------- USB-Berechtigung / Hilfen ----------------

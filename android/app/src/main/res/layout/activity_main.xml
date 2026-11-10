@@ -126,6 +126,11 @@
         <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
             android:textSize="11sp" android:textColor="#8a93a2" android:paddingTop="10dp"
             android:text="Zum Installieren den ESP32 per BOOT/EN in den Download-Modus bringen (die App sagt es an). Das Board wird beim Verbinden automatisch erkannt; der Regler ist nur zur Korrektur." />
+
+        <Button android:id="@+id/btnInfo" style="?android:attr/buttonStyleSmall"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="ℹ Info &amp; Lizenzen" />
     </LinearLayout>
 
     <!-- ===================== Panel: main.py ===================== -->
