@@ -602,3 +602,111 @@ class _Rgb:
 
 def RGB(pin, n=1, name=None):
     return _Rgb(pin, n, name=name)
+
+
+# ===========================================================================
+# Board-Objekt `b` mit Port-Properties — die klammerlose Kurzsprache.
+#
+#   b.do1 = 1      Ausgang an      (0/1 = digital; jede andere Zahl = PWM 0..255)
+#   b.do1 = 0      Ausgang aus
+#   b.do1 = 128    PWM (halbe Helligkeit)
+#   b.do1 = b.a0   PWM nach Poti    (b.a0 verhaelt sich wie seine Zahl)
+#   t  = b.a1      Analog lesen     (Property-Getter -> echter Wert, KEINE Klammer)
+#   if b.di0:      Taster lesen
+#   b.do1.on       an   (klammerlose Alternative zu = 1)
+#   b.do1.off      aus
+#
+# Warum ueberhaupt `b.do1`? Weil Python `=` auf einen nackten Namen (DO1 = 1)
+# NICHT ueberladen kann — wohl aber den Setter einer Property. Darum haengen die
+# Ports an einem Objekt. __getattr__/__setattr__ erzeugen do0.., di0.., a0..
+# dynamisch, damit jede Bank-Groesse ohne Handarbeit funktioniert.
+# ===========================================================================
+
+def _parse_port(name):
+    # "do1" -> ("do", 1), "DI0" -> ("di", 0), "a3" -> ("a", 3); sonst None.
+    low = name.lower()
+    for k in ("do", "di", "a"):
+        if low.startswith(k):
+            rest = low[len(k):]
+            if rest.isdigit():
+                return k, int(rest)
+    return None
+
+
+class _DoPin(_Readable):
+    """Digital-Ausgang, der bei einer Zahl != 0/1 automatisch zu PWM wird."""
+
+    def __init__(self, gpio, name):
+        self._g = gpio
+        self._name = name
+        self._state = 0
+        if SIM:
+            _label_out(gpio, name)
+
+    def _num(self):
+        return self._state
+
+    def set(self, x):
+        v = _val(x)
+        if v == 0 or v == 1:                 # digital
+            iv = 1 if v else 0
+            _dout(self._g, iv)
+            self._state = iv
+        else:                                # alles andere -> PWM 0..255
+            d = int(max(0, min(255, v)))
+            _pwm(self._g, round(d / 255 * 1023), 1000)
+            self._state = d
+
+    @property
+    def on(self):                            # b.do1.on  (klammerlos)
+        self.set(1)
+
+    @property
+    def off(self):                           # b.do1.off
+        self.set(0)
+
+    def toggle(self):
+        self.set(0 if self._state else 1)
+
+
+class _Board:
+    def __init__(self, do_pins=(), di_pins=(), a_pins=()):
+        ports = {"do": {}, "di": {}, "a": {}}
+        for i, g in enumerate(do_pins):
+            ports["do"][i] = _DoPin(g, "do%d" % i)
+        for i, g in enumerate(di_pins):
+            ports["di"][i] = _DigitalIn(g, name="di%d" % i)
+        for i, g in enumerate(a_pins):
+            ports["a"][i] = _AnalogIn(g, name="a%d" % i)
+        object.__setattr__(self, "_ports", ports)
+
+    def _get(self, name):
+        p = _parse_port(name)
+        if p is None:
+            return None
+        k, i = p
+        return self._ports[k].get(i)
+
+    def __getattr__(self, name):             # b.a1 / b.do0 / b.di1
+        obj = self._get(name)
+        if obj is None:
+            raise AttributeError(name)
+        return obj
+
+    def __setattr__(self, name, val):        # b.do1 = ...
+        p = _parse_port(name)
+        if p is None:
+            object.__setattr__(self, name, val)
+            return
+        k, i = p
+        obj = self._ports[k].get(i)
+        if obj is None:
+            raise AttributeError(name)
+        if k == "do":
+            obj.set(val)
+        else:
+            raise AttributeError("%s ist ein Eingang (nur lesen)" % name)
+
+
+def Board(do_pins=(), di_pins=(), a_pins=()):
+    return _Board(do_pins, di_pins, a_pins)

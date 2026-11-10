@@ -90,27 +90,23 @@ export function getBoard(id: string): Board {
   return BOARDS.find((b) => b.id === id) ?? BOARDS[0]
 }
 
-/** Vordefinierte Pin-Objekte für die versteckte DSL. Zuerst die Arduino-Bänke
- *  (DO0.., DI0.., A0..) — die stehen im Namensraum, bevor MAIN läuft. Danach die
- *  direkten GPIO-Namen D<gpio> für Fortgeschrittene. Kompakt, mehrere pro Zeile. */
+/** Vordefinierte Objekte für die versteckte DSL. Das Board-Objekt `b` trägt die
+ *  klammerlose Kurzsprache (b.do1 = 1 / t = b.a1); daneben die direkten
+ *  GPIO-Namen D<gpio> für Fortgeschrittene. */
 export function predefinedPinLines(board: Board): string {
+  const arr = (xs: number[]) => `[${xs.join(', ')}]`
   const { do: dos, di: dis, a: ais } = board.banks
-  const doLine = dos.map((g, i) => `DO${i} = DO(${g})`).join('; ')
-  const diLine = dis.map((g, i) => `DI${i} = DI(${g})`).join('; ')
-  const aLine = ais.map((g, i) => `A${i} = AI(${g})`).join('; ')
   const d = board.pins.map((p) => `D${p.gpio} = D(${p.gpio})`)
-  const chunk = (arr: string[], n: number): string[] => {
+  const chunk = (a: string[], n: number): string[] => {
     const out: string[] = []
-    for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n).join('; '))
+    for (let i = 0; i < a.length; i += n) out.push(a.slice(i, i + n).join('; '))
     return out
   }
   return [
-    '# Arduino-Baenke — vorab erzeugt, stehen im Namensraum:',
-    '#   Ausgang setzen: DO1(1)  oder  DO1.v = 1',
-    '#   Eingang lesen:  k = DI1()   t = A0()',
-    doLine,
-    diLine,
-    aLine,
+    '# Board `b` — schon da, bevor MAIN laeuft:',
+    '#   Ausgang:  b.do1 = 1   (0/1 = an/aus, jede andere Zahl = PWM 0..255)',
+    '#   Eingang:  t = b.a1    if b.di0:',
+    `b = Board(${arr(dos)}, ${arr(dis)}, ${arr(ais)})`,
     '# Direkt per GPIO (fortgeschritten): D<gpio>',
     ...chunk(d, 4),
   ].join('\n')

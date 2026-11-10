@@ -208,11 +208,11 @@ class MainActivity : AppCompatActivity() {
                 add("= 1" to ".v = 1"); add("= 0" to ".v = 0")
                 add("umsch." to ".toggle()")
                 add("🎨 Farbe" to ".color(\"rot\")"); add(">" to " > ")
-                // Arduino-Baenke (direkt): Ausgang DO<n>(1), Eingang DI<n>()/A<n>()
+                // Board-Ports (klammerlos): Ausgang b.do<n> = 1, Eingang b.a<n>/b.di<n>
                 val bk = selectedBoard().banks
-                bk.doPins.indices.forEach { add("DO$it" to "DO$it(1)") }
-                bk.diPins.indices.forEach { add("DI$it" to "DI$it()") }
-                bk.aPins.indices.forEach { add("A$it" to "A$it()") }
+                bk.doPins.indices.forEach { add("do$it" to "b.do$it = 1") }
+                bk.diPins.indices.forEach { add("di$it" to "b.di$it") }
+                bk.aPins.indices.forEach { add("a$it" to "b.a$it") }
                 for (n in deviceNames()) add(n to n)
             }
         }
@@ -486,16 +486,16 @@ class MainActivity : AppCompatActivity() {
     // ---------------- Seeds ----------------
 
     private fun seedSetup() = listOf(
-        "# Die Pins sind schon da: DO0..5, DI0..1, A0..4",
+        "# Das Board b ist schon da: b.do0..5, b.di0..1, b.a0..4",
         "# (hier nur noetig, wenn du eigene Geraete benennen willst)",
     ).joinToString("\n")
 
     private fun seedMain() = listOf(
-        "# Blinken mit der Onboard-LED (DO3 = GPIO8)",
+        "# Blinken mit der Onboard-LED (b.do3 = GPIO8)",
         "while True:",
-        "    DO3(1)         # an",
+        "    b.do3 = 1",
         "    wait(500)",
-        "    DO3(0)         # aus",
+        "    b.do3 = 0",
         "    wait(500)",
     ).joinToString("\n")
 

@@ -1,7 +1,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react'
 import { EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter } from '@codemirror/view'
 import { EditorState, Compartment } from '@codemirror/state'
-import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
+import { defaultKeymap, history, historyKeymap, indentWithTab, undo as cmUndo } from '@codemirror/commands'
 import { python } from '@codemirror/lang-python'
 import { syntaxHighlighting, defaultHighlightStyle, indentOnInput, bracketMatching } from '@codemirror/language'
 
@@ -18,6 +18,7 @@ export interface BlockEditorHandle {
   insertText: (s: string) => void
   newline: () => void
   backspace: () => void
+  undo: () => void
   focus: () => void
 }
 
@@ -148,6 +149,12 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor(
         selection: { anchor: sel.from + insert.length },
         scrollIntoView: true,
       })
+      view.focus()
+    },
+    undo() {
+      const view = viewRef.current
+      if (!view) return
+      cmUndo(view)
       view.focus()
     },
     backspace() {

@@ -27,16 +27,14 @@ data class Board(
      *  (DO0.., DI0.., A0.. — im Namensraum, bevor MAIN läuft), dann die direkten
      *  GPIO-Namen D<gpio> für Fortgeschrittene. */
     fun predefinedPinLines(): String {
-        val doLine = banks.doPins.mapIndexed { i, g -> "DO$i = DO($g)" }.joinToString("; ")
-        val diLine = banks.diPins.mapIndexed { i, g -> "DI$i = DI($g)" }.joinToString("; ")
-        val aLine = banks.aPins.mapIndexed { i, g -> "A$i = AI($g)" }.joinToString("; ")
+        fun arr(xs: List<Int>) = "[" + xs.joinToString(", ") + "]"
         val d = pins.map { "D${it.gpio} = D(${it.gpio})" }
         fun chunk(xs: List<String>, n: Int) = xs.chunked(n).joinToString("\n") { it.joinToString("; ") }
         return buildString {
-            append("# Arduino-Baenke — vorab erzeugt, stehen im Namensraum:\n")
-            append("#   Ausgang setzen: DO1(1)  oder  DO1.v = 1\n")
-            append("#   Eingang lesen:  k = DI1()   t = A0()\n")
-            append(doLine); append("\n"); append(diLine); append("\n"); append(aLine)
+            append("# Board `b` — schon da, bevor MAIN laeuft:\n")
+            append("#   Ausgang:  b.do1 = 1   (0/1 = an/aus, jede andere Zahl = PWM 0..255)\n")
+            append("#   Eingang:  t = b.a1    if b.di0:\n")
+            append("b = Board(${arr(banks.doPins)}, ${arr(banks.diPins)}, ${arr(banks.aPins)})")
             append("\n# Direkt per GPIO (fortgeschritten): D<gpio>\n"); append(chunk(d, 4))
         }
     }
