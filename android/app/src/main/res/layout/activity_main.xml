@@ -42,16 +42,19 @@
 
         <Button android:id="@+id/navCode" style="?android:attr/buttonBarButtonStyle"
             android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"
-            android:text="Code" android:textSize="12sp" android:singleLine="true" />
+            android:text="Code" android:textSize="11sp" android:padding="2dp" android:singleLine="true" />
         <Button android:id="@+id/navDevice" style="?android:attr/buttonBarButtonStyle"
             android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"
-            android:text="Gerät" android:textSize="12sp" android:singleLine="true" />
+            android:text="Gerät" android:textSize="11sp" android:padding="2dp" android:singleLine="true" />
         <Button android:id="@+id/navMain" style="?android:attr/buttonBarButtonStyle"
             android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"
-            android:text="main.py" android:textSize="12sp" android:singleLine="true" />
+            android:text="main.py" android:textSize="11sp" android:padding="2dp" android:singleLine="true" />
+        <Button android:id="@+id/navTerminal" style="?android:attr/buttonBarButtonStyle"
+            android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"
+            android:text="Term" android:textSize="11sp" android:padding="2dp" android:singleLine="true" />
         <Button android:id="@+id/navLog" style="?android:attr/buttonBarButtonStyle"
             android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"
-            android:text="Log" android:textSize="12sp" android:singleLine="true" />
+            android:text="Log" android:textSize="11sp" android:padding="2dp" android:singleLine="true" />
     </LinearLayout>
 
     <!-- ===================== Panel: CODE ===================== -->
@@ -66,13 +69,13 @@
             android:orientation="horizontal">
             <Button android:id="@+id/tabSetup" style="?android:attr/buttonStyleSmall"
                 android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"
-                android:text="⚙ SETUP" />
+                android:text="SETUP" />
             <Button android:id="@+id/tabMain" style="?android:attr/buttonStyleSmall"
                 android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"
-                android:text="▶ MAIN" />
+                android:text="MAIN" />
             <Button android:id="@+id/tabLib" style="?android:attr/buttonStyleSmall"
                 android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"
-                android:text="🧩 LIB" />
+                android:text="LIB" />
         </LinearLayout>
 
         <HorizontalScrollView android:layout_width="match_parent" android:layout_height="wrap_content">
@@ -91,7 +94,7 @@
 
         <Button android:id="@+id/btnStart"
             android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:text="▶ Start — übertragen &amp; ausführen" android:enabled="false" />
+            android:text="Start — übertragen &amp; ausführen" android:enabled="false" />
     </LinearLayout>
 
     <!-- ===================== Panel: GERÄT ===================== -->
@@ -155,6 +158,50 @@
                 android:fontFamily="monospace" android:textSize="11sp" android:padding="6dp"
                 android:background="#12151b" android:textColor="#e6e9ef" android:textIsSelectable="true" />
         </ScrollView>
+    </LinearLayout>
+
+    <!-- ===================== Panel: TERMINAL (seriell, wie Arduino-SerMonitor) ===================== -->
+    <LinearLayout android:id="@+id/panelTerminal"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:padding="6dp"
+        android:visibility="gone">
+
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center_vertical">
+            <TextView android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"
+                android:text="Terminal — serielle Ein-/Ausgabe" android:textSize="11sp" android:textColor="#8a93a2" />
+            <Button android:id="@+id/btnTerminalStop" style="?android:attr/buttonStyleSmall"
+                android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Stop" />
+            <Button android:id="@+id/btnTerminalClear" style="?android:attr/buttonStyleSmall"
+                android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="leeren" />
+        </LinearLayout>
+
+        <!-- IN: eingehende Ausgabe des Programms, scrollbar -->
+        <ScrollView android:id="@+id/terminalInScroll"
+            android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
+            android:background="#12151b">
+            <TextView android:id="@+id/terminalIn"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:fontFamily="monospace" android:textSize="12sp" android:padding="6dp"
+                android:textColor="#9be7a0" android:textIsSelectable="true" />
+        </ScrollView>
+
+        <!-- OUT: eine Zeile zum Senden an den ESP32 -->
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center_vertical" android:paddingTop="4dp">
+            <EditText android:id="@+id/terminalOut"
+                android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"
+                android:hint="Zeile senden…" android:singleLine="true"
+                android:inputType="text|textNoSuggestions"
+                android:imeOptions="actionSend"
+                android:fontFamily="monospace" android:textSize="13sp"
+                android:importantForAutofill="no" />
+            <Button android:id="@+id/btnTerminalSend" style="?android:attr/buttonStyleSmall"
+                android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Senden" />
+        </LinearLayout>
     </LinearLayout>
 
     <!-- ===================== Panel: LOG ===================== -->

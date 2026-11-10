@@ -69,6 +69,21 @@ const P: Record<string, JSX.Element> = {
       <path d="M9 6l6 6-6 6" />
     </>
   ),
+  for: (
+    <>
+      <path d="M4 7h7" />
+      <path d="M4 12h5" />
+      <path d="M4 17h7" />
+      <path d="M15 5l5 7-5 7" />
+    </>
+  ),
+  log: (
+    <>
+      <rect x="2.5" y="4.5" width="19" height="15" rx="2" />
+      <path d="M6 9l3 2.5L6 14" />
+      <path d="M11.5 14.5H17" />
+    </>
+  ),
   // Ports
   do: (
     <>

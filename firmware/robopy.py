@@ -542,6 +542,13 @@ TASTER = BTN   # Taster = DI mit Pull-Up + invertiert + entprellt
 MOTOR = Motor  # Motor = Wrapper über zwei Ausgänge (H-Brücke)
 wait = sleep_ms  # kindgerechter Alias: wait(500) statt sleep_ms(500)
 
+# Serielle Ausgabe: die USB-Serielle (REPL) ist schon da und verbunden. Was das
+# Kind mit log(...) schreibt, erscheint im Terminal der Android-App.
+#   log("Hallo")          log("Poti:", b.a0)
+# Technisch = print(): MicroPython schreibt print-Ausgaben auf genau diese
+# USB-CDC-Leitung, die die App mitliest.
+log = print
+
 
 # ===========================================================================
 # RGB — adressierbare WS2812/NeoPixel-LED (z. B. die Onboard-LED vieler

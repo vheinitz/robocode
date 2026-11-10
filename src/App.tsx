@@ -26,12 +26,14 @@ interface IconTok {
 function toolTokens(kind: BlockKind): IconTok[] {
   return [
     { icon: 'while', insert: 'while True:', help: 'Schleife – wiederholt den eingerückten Block' },
+    { icon: 'for', insert: 'for i in range(10):', help: 'Zähl-Schleife – i läuft von 0 bis 9' },
     { icon: 'if', insert: 'if :', help: 'Wenn … dann' },
     { icon: 'elif', insert: 'elif :', help: 'Sonst wenn …' },
     { icon: 'else', insert: 'else:', help: 'Sonst' },
     ...(kind === 'lib' ? [{ icon: 'def', insert: 'def name():', help: 'Eigene Funktion' }] : []),
     { icon: 'wait', insert: 'wait(500)', help: 'Warten (Millisekunden)' },
     { icon: 'every', insert: 'takt = Every(300)', help: 'Takt – alle n ms, ohne zu blockieren' },
+    { icon: 'log', insert: 'log("Hallo")', help: 'Seriell senden – erscheint im Terminal der App' },
     { icon: 'toggle', insert: '.toggle()', help: 'Ausgang umschalten' },
     { icon: 'color', insert: '.color("rot")', help: 'RGB-Farbe setzen' },
     { icon: 'gt', insert: ' > ', help: 'größer als' },

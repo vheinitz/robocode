@@ -95,12 +95,15 @@ export function createPlaygroundProject(): Project {
         kind: 'main',
         enabled: true,
         code: [
-          '# Blinken mit der Onboard-LED (b.do3 = GPIO8)',
+          '# Blinken + seriell senden (erscheint im Terminal der App)',
+          'n = 0',
           'while True:',
           '    b.do3 = 1',
+          '    log("blink", n)',
           '    wait(500)',
           '    b.do3 = 0',
           '    wait(500)',
+          '    n = n + 1',
         ].join('\n'),
       },
       {

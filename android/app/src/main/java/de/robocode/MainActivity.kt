@@ -52,11 +52,18 @@ class MainActivity : AppCompatActivity() {
     private lateinit var logView: TextView
     private lateinit var logScroll: ScrollView
     private lateinit var mainPyView: TextView
+    private lateinit var terminalIn: TextView
+    private lateinit var terminalInScroll: ScrollView
+    private lateinit var terminalOut: EditText
 
     private lateinit var panelCode: View
     private lateinit var panelDevice: View
     private lateinit var panelMain: View
+    private lateinit var panelTerminal: View
     private lateinit var panelLog: View
+
+    // Läuft die Terminal-Leseschleife (Port bleibt offen, Programmausgabe wird gelesen)?
+    @Volatile private var terminalRunning = false
 
     private val tabs = linkedMapOf("setup" to seedSetup(), "main" to seedMain(), "lib" to seedLib())
     private var active = "setup"
@@ -80,6 +87,7 @@ class MainActivity : AppCompatActivity() {
                 UsbManager.ACTION_USB_DEVICE_ATTACHED -> { log("ESP32 angesteckt."); autoConnect() }
                 UsbManager.ACTION_USB_DEVICE_DETACHED -> {
                     log("ESP32 abgezogen.")
+                    terminalRunning = false // Terminal-Leseschleife beenden
                     runOnUiThread { setStatus("● kein ESP32", RED); btnStart.isEnabled = false }
                 }
             }
@@ -101,9 +109,13 @@ class MainActivity : AppCompatActivity() {
         logView = findViewById(R.id.log)
         logScroll = findViewById(R.id.logScroll)
         mainPyView = findViewById(R.id.mainPyView)
+        terminalIn = findViewById(R.id.terminalIn)
+        terminalInScroll = findViewById(R.id.terminalInScroll)
+        terminalOut = findViewById(R.id.terminalOut)
         panelCode = findViewById(R.id.panelCode)
         panelDevice = findViewById(R.id.panelDevice)
         panelMain = findViewById(R.id.panelMain)
+        panelTerminal = findViewById(R.id.panelTerminal)
         panelLog = findViewById(R.id.panelLog)
 
         usb = UsbSerialLink(this)
@@ -115,6 +127,7 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.navCode).setOnClickListener { showPanel(panelCode) }
         findViewById<Button>(R.id.navDevice).setOnClickListener { showPanel(panelDevice) }
         findViewById<Button>(R.id.navMain).setOnClickListener { refreshMainPy(); showPanel(panelMain) }
+        findViewById<Button>(R.id.navTerminal).setOnClickListener { showPanel(panelTerminal) }
         findViewById<Button>(R.id.navLog).setOnClickListener { showPanel(panelLog) }
 
         // Code-Sub-Tabs
@@ -135,6 +148,12 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.btnDownloadMain).setOnClickListener { downloadMain() }
         findViewById<Button>(R.id.btnClearLog).setOnClickListener { logView.text = "" }
         findViewById<Button>(R.id.btnInfo).setOnClickListener { onInfo() }
+
+        // Terminal (serielle Ein-/Ausgabe)
+        findViewById<Button>(R.id.btnTerminalClear).setOnClickListener { terminalIn.text = "" }
+        findViewById<Button>(R.id.btnTerminalStop).setOnClickListener { stopTerminal() }
+        findViewById<Button>(R.id.btnTerminalSend).setOnClickListener { sendTerminalLine() }
+        terminalOut.setOnEditorActionListener { _, _, _ -> sendTerminalLine(); true }
 
         editor.addTextChangedListener(object : TextWatcher {
             override fun afterTextChanged(s: Editable?) { if (!suppressWatcher) tabs[active] = s?.toString() ?: "" }
@@ -159,12 +178,14 @@ class MainActivity : AppCompatActivity() {
     // ---------------- Panels / Status ----------------
 
     private fun showPanel(p: View) {
-        for (v in listOf(panelCode, panelDevice, panelMain, panelLog)) v.visibility = if (v === p) View.VISIBLE else View.GONE
+        for (v in listOf(panelCode, panelDevice, panelMain, panelTerminal, panelLog))
+            v.visibility = if (v === p) View.VISIBLE else View.GONE
     }
 
     private fun showPanelByName(name: String) = when (name) {
         "device" -> showPanel(panelDevice)
         "main" -> { refreshMainPy(); showPanel(panelMain) }
+        "terminal" -> showPanel(panelTerminal)
         "log" -> showPanel(panelLog)
         "info" -> { showPanel(panelDevice); onInfo() }
         else -> showPanel(panelCode)
@@ -198,16 +219,17 @@ class MainActivity : AppCompatActivity() {
                 "🔘 Taster" to "taster = TASTER(2)", "⚙️ Motor" to "motor = MOTOR(6, 7)",
             )
             else -> buildList {
-                add("🔁 while" to "while True:")
-                add("❓ if" to "if :")
-                add("❓! elif" to "elif :")
+                add("while" to "while True:")
+                add("for" to "for i in range(10):")
+                add("if" to "if :")
+                add("elif" to "elif :")
                 add("sonst" to "else:")
-                if (key == "lib") add("🧩 def" to "def name():")
-                add("⏱ warte" to "wait(500)")
+                if (key == "lib") add("def" to "def name():")
+                add("warte" to "wait(500)")
+                add("log" to "log(\"Hallo\")")
                 add("Takt" to "takt = Every(300)")
-                add("= 1" to ".v = 1"); add("= 0" to ".v = 0")
                 add("umsch." to ".toggle()")
-                add("🎨 Farbe" to ".color(\"rot\")"); add(">" to " > ")
+                add("Farbe" to ".color(\"rot\")"); add(">" to " > ")
                 // Board-Ports (klammerlos): Ausgang b.do<n> = 1, Eingang b.a<n>/b.di<n>
                 val bk = selectedBoard().banks
                 bk.doPins.indices.forEach { add("do$it" to "b.do$it = 1") }
@@ -370,13 +392,60 @@ class MainActivity : AppCompatActivity() {
             if (!repl.uploadMain(mainPy, listener)) { log("Übertragung fehlgeschlagen."); return }
             log("Starte (Soft-Reset)…")
             repl.softReset()
-            log("— Ausgabe (print) —")
-            repl.follow(4000, listener)
-            log("Läuft. main.py startet nun auch bei jedem Boot.")
+            log("Läuft. Ausgabe im Terminal. (main.py startet nun auch bei jedem Boot.)")
+            runTerminalLoop()
         } catch (e: Exception) {
             log("Fehler: ${e.message}")
         } finally {
             usb.close()
+        }
+    }
+
+    // ---------------- Terminal: serielle Ein-/Ausgabe ----------------
+
+    /**
+     * Hält den Port offen und liest die Programmausgabe (print/log) fortlaufend
+     * ins Terminal — bis »Stop« gedrückt oder das Gerät getrennt wird. Läuft im
+     * runBusy-Thread von [doStart]; das `finally` dort schließt danach den Port.
+     */
+    private fun runTerminalLoop() {
+        terminalRunning = true
+        runOnUiThread {
+            setStatus("● läuft · ${selectedBoard().name}", GREEN)
+            appendTerminal("— verbunden, Programm läuft —\n")
+            if (pinnedPanel == null) showPanel(panelTerminal)
+        }
+        val buf = ByteArray(1024)
+        while (terminalRunning && usb.isOpen) {
+            val n = usb.readRaw(buf, 200)
+            if (n > 0) appendTerminal(String(buf, 0, n, Charsets.UTF_8))
+        }
+        runOnUiThread {
+            appendTerminal("\n— Terminal beendet —\n")
+            setStatus("● verbunden · ${selectedBoard().name}", GREEN)
+        }
+    }
+
+    private fun stopTerminal() {
+        if (!terminalRunning) { toast("Terminal läuft nicht"); return }
+        terminalRunning = false
+        log("Terminal gestoppt.")
+    }
+
+    /** Eine Zeile an den ESP32 senden (wie Arduino-SerMonitor: Text + CR/LF). */
+    private fun sendTerminalLine() {
+        val line = terminalOut.text?.toString() ?: ""
+        if (line.isEmpty()) return
+        if (!usb.isOpen || !terminalRunning) { toast("Nicht verbunden — erst Start"); return }
+        thread(isDaemon = true) { usb.writeRaw((line + "\r\n").toByteArray(Charsets.UTF_8)) }
+        appendTerminal("» $line\n")
+        terminalOut.setText("")
+    }
+
+    private fun appendTerminal(s: String) {
+        runOnUiThread {
+            terminalIn.append(s)
+            terminalInScroll.post { terminalInScroll.fullScroll(ScrollView.FOCUS_DOWN) }
         }
     }
 
@@ -479,6 +548,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        terminalRunning = false
         if (usb.isOpen) usb.close()
         try { unregisterReceiver(usbReceiver) } catch (_: Exception) {}
     }
@@ -491,12 +561,15 @@ class MainActivity : AppCompatActivity() {
     ).joinToString("\n")
 
     private fun seedMain() = listOf(
-        "# Blinken mit der Onboard-LED (b.do3 = GPIO8)",
+        "# Blinken + seriell senden (erscheint im Terminal)",
+        "n = 0",
         "while True:",
         "    b.do3 = 1",
+        "    log(\"blink\", n)",
         "    wait(500)",
         "    b.do3 = 0",
         "    wait(500)",
+        "    n = n + 1",
     ).joinToString("\n")
 
     private fun seedLib() = listOf("# Eigene Funktionen (hier nichts nötig)").joinToString("\n")
