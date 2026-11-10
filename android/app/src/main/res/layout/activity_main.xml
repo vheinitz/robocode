@@ -65,8 +65,10 @@
         android:orientation="vertical"
         android:padding="6dp">
 
-        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:orientation="horizontal">
+        <!-- Sub-Tabs SETUP/MAIN/LIB: in dieser Variante ausgeblendet (nur MAIN) -->
+        <LinearLayout android:id="@+id/tabRow"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:visibility="gone">
             <Button android:id="@+id/tabSetup" style="?android:attr/buttonStyleSmall"
                 android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"
                 android:text="SETUP" />
@@ -78,10 +80,20 @@
                 android:text="LIB" />
         </LinearLayout>
 
-        <HorizontalScrollView android:layout_width="match_parent" android:layout_height="wrap_content">
+        <!-- Palette: Gruppen-Zeile (Top-Level) -->
+        <HorizontalScrollView android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:scrollbars="none">
             <LinearLayout android:id="@+id/palette"
                 android:layout_width="wrap_content" android:layout_height="wrap_content"
                 android:orientation="horizontal" />
+        </HorizontalScrollView>
+        <!-- Palette: aufgeklappte Unter-Zeile (Inhalt der gewählten Gruppe) -->
+        <HorizontalScrollView android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:scrollbars="none">
+            <LinearLayout android:id="@+id/paletteSub"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal" android:visibility="gone" />
         </HorizontalScrollView>
 
         <EditText android:id="@+id/editor"

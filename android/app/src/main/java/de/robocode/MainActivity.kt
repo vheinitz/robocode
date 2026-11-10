@@ -18,6 +18,7 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
+import android.widget.SeekBar
 import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
@@ -44,6 +45,10 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var editor: EditText
     private lateinit var palette: LinearLayout
+    private lateinit var paletteSub: LinearLayout
+    // Aufklapp-Zustand der Palette: offene Gruppe und (bei Board) gewählter Port.
+    private var grp: String? = null
+    private var grpPort: String? = null
     private lateinit var spinnerBoard: Spinner
     private lateinit var txtStatus: TextView
     private lateinit var txtDeviceInfo: TextView
@@ -101,6 +106,7 @@ class MainActivity : AppCompatActivity() {
 
         editor = findViewById(R.id.editor)
         palette = findViewById(R.id.palette)
+        paletteSub = findViewById(R.id.paletteSub)
         spinnerBoard = findViewById(R.id.spinnerBoard)
         txtStatus = findViewById(R.id.txtStatus)
         txtDeviceInfo = findViewById(R.id.txtDeviceInfo)
@@ -161,7 +167,7 @@ class MainActivity : AppCompatActivity() {
             override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
         })
 
-        switchTab("setup")
+        switchTab("main")   // nur MAIN sichtbar; SETUP/LIB sind ausgeblendet
         showPanel(panelCode)
         intent?.getStringExtra("panel")?.let { pinnedPanel = it; showPanelByName(it) }
 
@@ -209,46 +215,109 @@ class MainActivity : AppCompatActivity() {
         buildPalette(key)
     }
 
+    // Palette als aufklappbare Gruppen. Top-Zeile = Gruppen; beim Klick klappt
+    // die Unter-Zeile mit den Elementen auf (Board hat noch eine dritte Stufe:
+    // do/di/a -> Zahl). Icons folgen später; vorerst Textlabels.
+    private val GROUPS = listOf("Board", "Kontrolle", "Operator", "Warte", "Seriell", "Mehr")
+
     private fun buildPalette(key: String) {
+        grp = null; grpPort = null
+        rebuildGroups()
+    }
+
+    /** Gruppen-Zeile (neu) zeichnen — markiert die offene Gruppe, ohne den
+     *  Zustand zurückzusetzen; danach die Unter-Zeile aktualisieren. */
+    private fun rebuildGroups() {
         palette.removeAllViews()
-        val tokens: List<Pair<String, String>> = when (key) {
-            "setup" -> listOf(
-                "📥 DI" to "eingang = DI(4)", "📤 DO" to "ausgang = DO(5)",
-                "🎚️ AI" to "poti = AI(0)", "🔆 AO" to "dimmer = AO(5)",
-                "💡 LED" to "led = LED(13)", "🌈 RGB" to "rgb = RGB(2)",
-                "🔘 Taster" to "taster = TASTER(2)", "⚙️ Motor" to "motor = MOTOR(6, 7)",
-            )
-            else -> buildList {
-                add("while" to "while True:")
-                add("for" to "for i in range(10):")
-                add("if" to "if :")
-                add("elif" to "elif :")
-                add("sonst" to "else:")
-                if (key == "lib") add("def" to "def name():")
-                add("warte" to "wait(500)")
-                add("log" to "log(\"Hallo\")")
-                add("Takt" to "takt = Every(300)")
-                add("umsch." to ".toggle()")
-                add("Farbe" to ".color(\"rot\")"); add(">" to " > ")
-                // Board-Ports (klammerlos): Ausgang b.do<n> = 1, Eingang b.a<n>/b.di<n>
-                val bk = selectedBoard().banks
-                bk.doPins.indices.forEach { add("do$it" to "b.do$it = 1") }
-                bk.diPins.indices.forEach { add("di$it" to "b.di$it") }
-                bk.aPins.indices.forEach { add("a$it" to "b.a$it") }
-                for (n in deviceNames()) add(n to n)
-            }
-        }
-        for ((label, text) in tokens) {
-            palette.addView(Button(this).apply {
-                this.text = label; isAllCaps = false
-                setOnClickListener { insertAtCursor(text) }
+        for (g in GROUPS) {
+            palette.addView(groupButton(g, active = (g == grp)) {
+                grp = if (grp == g) null else g
+                grpPort = null
+                rebuildGroups()
             })
+        }
+        refreshSub()
+    }
+
+    /** Baut die aufgeklappte Unter-Zeile anhand [grp]/[grpPort]. */
+    private fun refreshSub() {
+        paletteSub.removeAllViews()
+        when (grp) {
+            null -> { paletteSub.visibility = View.GONE; return }
+            "Board" -> buildBoardSub()
+            "Kontrolle" -> addLeaves(
+                "while" to "while True:", "for" to "for i in range(10):",
+                "if" to "if :", "elif" to "elif :", "sonst" to "else:", "def" to "def name():",
+            )
+            "Operator" -> addLeaves(
+                ">" to " > ", "<" to " < ", ">=" to " >= ", "<=" to " <= ", "==" to " == ",
+                "=" to " = ", "+" to " + ", "-" to " - ", "und" to " and ", "oder" to " or ", "nicht" to "not ",
+            )
+            "Warte" -> buildWaitSub()
+            "Seriell" -> addLeaves("log Text" to "log(\"Hallo\")", "log Wert" to "log(\"Wert:\", )")
+            "Mehr" -> addLeaves("umschalten" to ".toggle()", "Farbe" to ".color(\"rot\")", "Takt" to "takt = Every(300)")
+        }
+        paletteSub.visibility = View.VISIBLE
+    }
+
+    private fun buildBoardSub() {
+        val bk = selectedBoard().banks
+        if (grpPort == null) {
+            for (p in listOf("do", "di", "a")) leaf(p) { grpPort = p; refreshSub() }
+        } else {
+            leaf("‹ zurück") { grpPort = null; refreshSub() }
+            val count = when (grpPort) { "do" -> bk.doPins.size; "di" -> bk.diPins.size; else -> bk.aPins.size }
+            for (n in 0 until count) {
+                val insert = if (grpPort == "do") "b.do$n = 1" else "b.$grpPort$n"
+                leaf("$grpPort$n") { insertAtCursor(insert); grpPort = null; refreshSub() }
+            }
         }
     }
 
-    private fun deviceNames(): List<String> =
-        Regex("(?m)^\\s*([A-Za-z_]\\w*)\\s*=(?!=)").findAll(tabs["setup"] ?: "")
-            .map { it.groupValues[1] }.distinct().toList()
+    private fun buildWaitSub() {
+        for (ms in listOf(100, 250, 500, 1000, 2000)) leaf("${ms}ms") { insertAtCursor("wait($ms)") }
+        // Schieberegler als Eingabe
+        val label = TextView(this).apply {
+            text = "wait(500)"; setPadding(dp(12), 0, dp(8), 0)
+            gravity = android.view.Gravity.CENTER_VERTICAL
+        }
+        val seek = SeekBar(this).apply {
+            max = 2000; progress = 500
+            layoutParams = LinearLayout.LayoutParams(dp(160), LinearLayout.LayoutParams.WRAP_CONTENT)
+            // Drag im horizontalen ScrollView zulassen
+            setOnTouchListener { v, _ -> v.parent?.requestDisallowInterceptTouchEvent(true); false }
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(sb: SeekBar, p: Int, u: Boolean) { label.text = "wait($p)" }
+                override fun onStartTrackingTouch(sb: SeekBar) {}
+                override fun onStopTrackingTouch(sb: SeekBar) {}
+            })
+        }
+        paletteSub.addView(label)
+        paletteSub.addView(seek)
+        leaf("einfügen") { insertAtCursor("wait(${seek.progress})") }
+    }
+
+    // ---- Palette-Hilfen ----
+
+    private fun addLeaves(vararg items: Pair<String, String>) {
+        for ((label, text) in items) leaf(label) { insertAtCursor(text) }
+    }
+
+    private fun leaf(label: String, onClick: () -> Unit) {
+        paletteSub.addView(Button(this).apply {
+            text = label; isAllCaps = false
+            setOnClickListener { onClick() }
+        })
+    }
+
+    private fun groupButton(label: String, active: Boolean, onClick: () -> Unit): Button =
+        Button(this).apply {
+            text = label; isAllCaps = false
+            if (active) setTextColor(GREEN)
+            setOnClickListener { onClick() }
+        }
+
+    private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
 
     private fun insertAtCursor(text: String) {
         var t = text
