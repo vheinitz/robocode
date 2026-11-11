@@ -21,6 +21,13 @@ export const ROLE_LABEL: Record<PinRole, string> = {
   SDA: 'I²C SDA', SCL: 'I²C SCL', SPI: 'SPI', INT: 'Interrupt', none: '—',
 }
 
+/** Ein physischer Pin-Platz in der Board-Ansicht: entweder ein GPIO
+ *  (editierbar) oder ein fester Versorgungspin (5V/GND/3V3). */
+export interface Slot {
+  gpio?: number
+  power?: '5V' | 'GND' | '3V3'
+}
+
 export interface Board {
   id: string
   name: string
@@ -33,6 +40,9 @@ export interface Board {
    *  als Objekte erzeugt und stehen im Namensraum (willkuerliche Aufteilung;
    *  wenige DIs, weil A-Pins ebenfalls digital lesbar sind). */
   banks: { do: number[]; di: number[]; a: number[] }
+  /** Physische Pin-Anordnung (Platine von oben, USB-C oben): linke und rechte
+   *  Stiftleiste je von oben nach unten. Quelle: espboards.dev-Pinouts. */
+  layout: { left: Slot[]; right: Slot[] }
 }
 
 export const BOARDS: Board[] = [
@@ -59,6 +69,11 @@ export const BOARDS: Board[] = [
     ],
     // DO0..5 = GPIO5..10, DI0..1 = GPIO20..21, A0..4 = GPIO0..4 (A0..4 == gpio).
     banks: { do: [5, 6, 7, 8, 9, 10], di: [20, 21], a: [0, 1, 2, 3, 4] },
+    // Platine von oben, USB-C oben (espboards.dev/esp32/esp32-c3-super-mini).
+    layout: {
+      left: [{ gpio: 5 }, { gpio: 6 }, { gpio: 7 }, { gpio: 8 }, { gpio: 9 }, { gpio: 10 }, { gpio: 20 }, { gpio: 21 }],
+      right: [{ power: '5V' }, { power: 'GND' }, { power: '3V3' }, { gpio: 4 }, { gpio: 3 }, { gpio: 2 }, { gpio: 1 }, { gpio: 0 }],
+    },
   },
   {
     id: 'esp32s3',
@@ -66,6 +81,8 @@ export const BOARDS: Board[] = [
     chip: 'esp32s3',
     flashOffset: 0x0,
     image: 'boards/esp32-s3-supermini.png',
+    // Nur die obere Ansicht (espboards.dev/esp32/esp32-s3-super-mini): die auf
+    // der Oberseite herausgefuehrten GPIOs. 43/44 = USB-Serielle (U0TXD/U0RXD).
     pins: [
       { gpio: 1, adc: true },
       { gpio: 2, adc: true },
@@ -77,24 +94,18 @@ export const BOARDS: Board[] = [
       { gpio: 8, adc: true },
       { gpio: 9, adc: true },
       { gpio: 10, adc: true },
-      { gpio: 11 },
-      { gpio: 12 },
-      { gpio: 13 },
-      { gpio: 14 },
-      { gpio: 15 },
-      { gpio: 16 },
-      { gpio: 17 },
-      { gpio: 18 },
-      { gpio: 21 },
-      { gpio: 38 },
-      { gpio: 39 },
-      { gpio: 40 },
-      { gpio: 41 },
-      { gpio: 42 },
-      { gpio: 47 },
-      { gpio: 48 },
+      { gpio: 11, adc: true },
+      { gpio: 12, adc: true },
+      { gpio: 13, adc: true },
+      { gpio: 43, note: 'U0TXD' },
+      { gpio: 44, note: 'U0RXD' },
     ],
-    banks: { do: [11, 12, 13, 14, 15, 16], di: [17, 18], a: [1, 2, 3, 4, 5] },
+    banks: { do: [8, 9, 10, 11, 12, 13], di: [6, 7], a: [1, 2, 3, 4, 5] },
+    // Obere Ansicht, USB-C oben.
+    layout: {
+      left: [{ gpio: 43 }, { gpio: 44 }, { gpio: 1 }, { gpio: 2 }, { gpio: 3 }, { gpio: 4 }, { gpio: 5 }, { gpio: 6 }, { gpio: 7 }],
+      right: [{ power: '5V' }, { power: 'GND' }, { power: '3V3' }, { gpio: 13 }, { gpio: 12 }, { gpio: 11 }, { gpio: 10 }, { gpio: 9 }, { gpio: 8 }],
+    },
   },
   {
     // Wie C3 SuperMini, aber mit onboard-OLED 0.42" (SSD1306, I²C auf GPIO5/6).
@@ -120,6 +131,12 @@ export const BOARDS: Board[] = [
       { gpio: 21 },
     ],
     banks: { do: [7, 8, 9, 10], di: [20, 21], a: [0, 1, 2, 3, 4] },
+    // Platine von oben, USB-C oben (espboards.dev/esp32/esp32-c3-oled-042).
+    // Onboard-OLED an GPIO5 (SDA) / GPIO6 (SCL); Onboard-LED an GPIO8.
+    layout: {
+      left: [{ power: '5V' }, { power: 'GND' }, { power: '3V3' }, { gpio: 20 }, { gpio: 21 }, { gpio: 2 }, { gpio: 1 }, { gpio: 0 }],
+      right: [{ gpio: 10 }, { gpio: 9 }, { gpio: 8 }, { gpio: 7 }, { gpio: 6 }, { gpio: 5 }, { gpio: 4 }, { gpio: 3 }],
+    },
   },
 ]
 

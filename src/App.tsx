@@ -15,7 +15,7 @@ import {
   exportProjectJson,
 } from './model/project'
 import { assembleSketch } from './hw/assemble'
-import { BOARDS, getBoard, defaultPins, isValidName, ROLE_LABEL, PinDesc, PinRole } from './hw/boards'
+import { BOARDS, getBoard, defaultPins, isValidName, ROLE_LABEL, PinDesc, PinRole, Slot } from './hw/boards'
 import BlockEditor, { BlockEditorHandle } from './editor/BlockEditor'
 import { Icon } from './editor/icons'
 
@@ -266,15 +266,14 @@ export default function App() {
   const iconBtn =
     'inline-flex items-center justify-center rounded-md border border-gray-300 bg-white px-2 py-1 text-xs text-gray-600 hover:text-gray-900 hover:border-teal-400'
 
-  const half = Math.ceil(effectivePins.length / 2)
-  const leftPins = effectivePins.slice(0, half)
-  const rightPins = effectivePins.slice(half)
+  const pinByGpio = new Map(effectivePins.map((p) => [p.gpio, p]))
   const imgSrc = board.image ? `${import.meta.env.BASE_URL}${board.image}` : ''
 
   // Als Render-Funktion (KEINE innere Komponente) — sonst remountet React die
-  // Eingabe bei jedem Tastendruck und der Fokus geht verloren.
-  const renderPin = (p: PinDesc) => (
-      <div key={p.gpio} className="flex items-center gap-1 py-0.5">
+  // Eingabe bei jedem Tastendruck und der Fokus geht verloren. `side` dreht die
+  // Reihenfolge, damit das GPIO-Label jeweils zur Platine zeigt (wie im Pinout).
+  const renderPin = (p: PinDesc, side: 'l' | 'r') => (
+      <div key={p.gpio} className={`flex items-center gap-1 py-0.5 ${side === 'l' ? 'flex-row-reverse' : ''}`}>
         <span className="w-9 shrink-0 text-right font-mono text-[10px] text-gray-400">G{p.gpio}</span>
         <input
           value={p.name}
@@ -299,6 +298,23 @@ export default function App() {
         </select>
       </div>
   )
+
+  // Ein Platz in der Stiftleiste: GPIO-Zeile oder fester Versorgungspin.
+  const renderSlot = (slot: Slot, side: 'l' | 'r') => {
+    if (slot.power) {
+      const color =
+        slot.power === 'GND' ? 'border-gray-700 bg-gray-700 text-white' : 'border-red-300 bg-red-100 text-red-700'
+      return (
+        <div key={`${side}-pwr-${slot.power}`} className={`flex items-center gap-1 py-0.5 ${side === 'l' ? 'flex-row-reverse' : ''}`}>
+          <span className="w-9 shrink-0" />
+          <span className={`w-20 rounded border px-1 py-0.5 text-center font-mono text-[11px] ${color}`}>{slot.power}</span>
+          <span className="w-12 shrink-0" />
+        </div>
+      )
+    }
+    const p = pinByGpio.get(slot.gpio!)
+    return p ? renderPin(p, side) : null
+  }
 
   return (
     <div className="relative flex h-full flex-col bg-gray-100">
@@ -567,7 +583,7 @@ export default function App() {
 
           {/* Board-Bild mittig, Pin-Controls links/rechts drumherum */}
           <div className="flex items-start justify-center gap-2 p-3">
-            <div className="flex flex-col">{leftPins.map(renderPin)}</div>
+            <div className="flex flex-col">{board.layout.left.map((s) => renderSlot(s, 'l'))}</div>
             <div className="flex shrink-0 flex-col items-center">
               {imgSrc ? (
                 <img src={imgSrc} alt={board.name} className="max-h-[60vh] w-auto max-w-[220px] rounded border border-gray-200" />
@@ -576,7 +592,7 @@ export default function App() {
               )}
               <span className="mt-1 text-center text-[11px] font-medium text-gray-600">{board.name}</span>
             </div>
-            <div className="flex flex-col">{rightPins.map(renderPin)}</div>
+            <div className="flex flex-col">{board.layout.right.map((s) => renderSlot(s, 'r'))}</div>
           </div>
 
           <div className="px-3 pb-4 text-[11px] text-gray-500">
