@@ -280,29 +280,24 @@ export default function App() {
   // Reihe ohne eigenes py: der Abstand kommt aus justify-between der Spalte,
   // damit die Reihen auf Höhe der realen Pins liegen.
   const rowCls = (side: 'l' | 'r') => `flex items-center gap-0.5 ${side === 'l' ? 'flex-row-reverse' : ''}`
-  const gpioLabel = (gpio: number) => (
-    <span className="w-6 shrink-0 text-right font-mono text-[10px] text-gray-400">G{gpio}</span>
-  )
 
   const renderPin = (p: PinDesc, side: 'l' | 'r') => {
     // Hardware-gebundener Pin (I²C/SPI/INT): fest, nicht editierbar.
     if (RESERVED_ROLES.includes(p.role)) {
       return (
         <div key={p.gpio} className={rowCls(side)}>
-          {gpioLabel(p.gpio)}
           <span
             className="w-10 rounded border border-amber-300 bg-amber-50 px-0.5 py-0.5 text-center font-mono text-[11px] text-amber-700"
             title={`${ROLE_LABEL[p.role]} — fest (${p.note ?? p.name})`}
           >
             {p.name}
           </span>
-          <span className="w-8 shrink-0 text-center font-mono text-[10px] text-amber-600">{p.role}</span>
+          <span className="w-10 shrink-0 text-center font-mono text-[10px] text-amber-600">{p.role}</span>
         </div>
       )
     }
     return (
       <div key={p.gpio} className={rowCls(side)}>
-        {gpioLabel(p.gpio)}
         <input
           value={p.name}
           disabled={!cloned}
@@ -315,7 +310,7 @@ export default function App() {
           value={p.role}
           disabled={!cloned}
           onChange={(e) => updatePin(p.gpio, { role: e.target.value as PinRole })}
-          className={`w-9 rounded border px-0 py-0.5 text-[11px] ${
+          className={`w-10 rounded border px-0 py-0.5 text-[11px] ${
             cloned ? 'border-gray-300 bg-white text-gray-700' : 'border-transparent bg-gray-50 text-gray-500'
           }`}
           title={p.adc ? 'ADC-fähig' : 'nur digital'}
@@ -335,9 +330,8 @@ export default function App() {
         slot.power === 'GND' ? 'border-gray-700 bg-gray-700 text-white' : 'border-red-300 bg-red-100 text-red-700'
       return (
         <div key={`${side}-pwr-${slot.power}`} className={rowCls(side)}>
-          <span className="w-6 shrink-0" />
           <span className={`w-10 rounded border px-0.5 py-0.5 text-center font-mono text-[11px] ${color}`}>{slot.power}</span>
-          <span className="w-8 shrink-0" />
+          <span className="w-10 shrink-0" />
         </div>
       )
     }
