@@ -43,6 +43,9 @@
         <Button android:id="@+id/navCode" style="?android:attr/buttonBarButtonStyle"
             android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"
             android:text="Code" android:textSize="11sp" android:padding="2dp" android:singleLine="true" />
+        <Button android:id="@+id/navBoard" style="?android:attr/buttonBarButtonStyle"
+            android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"
+            android:text="Board" android:textSize="11sp" android:padding="2dp" android:singleLine="true" />
         <Button android:id="@+id/navDevice" style="?android:attr/buttonBarButtonStyle"
             android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"
             android:text="Gerät" android:textSize="11sp" android:padding="2dp" android:singleLine="true" />
@@ -115,6 +118,54 @@
             android:fontFamily="monospace" android:textSize="13sp"
             android:importantForAutofill="no"
             android:background="#12151b" android:textColor="#e6e9ef" android:padding="6dp" />
+    </LinearLayout>
+
+    <!-- ===================== Panel: BOARD (0.2 — Pin-Belegung) ===================== -->
+    <LinearLayout android:id="@+id/panelBoard"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <!-- Kopfzeile: Board-Auswahl + Klonen/Standard -->
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center_vertical"
+            android:background="#f3f4f6" android:padding="8dp">
+            <Spinner android:id="@+id/spinnerBoardCfg"
+                android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" />
+            <Button android:id="@+id/btnBoardClone" style="?android:attr/buttonStyleSmall"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="Fürs Projekt klonen" android:textSize="11sp" />
+        </LinearLayout>
+        <TextView android:id="@+id/txtBoardHint"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:textSize="11sp" android:textColor="#6b7280"
+            android:paddingStart="10dp" android:paddingEnd="10dp" android:paddingTop="4dp" android:paddingBottom="4dp"
+            android:text="Standard-Belegung. Zum Umbenennen klonen." />
+
+        <ScrollView android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
+            android:background="#ffffff">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="vertical" android:padding="8dp">
+                <!-- Wird in Code gefüllt: linke Pins | Board-Bild | rechte Pins.
+                     Horizontal scrollbar, da 3 Spalten + Bild breiter als der Schirm. -->
+                <HorizontalScrollView android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:scrollbars="none">
+                    <LinearLayout android:id="@+id/boardRow"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:orientation="horizontal" android:gravity="center_vertical" />
+                </HorizontalScrollView>
+                <TextView android:id="@+id/txtBoardName"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:gravity="center" android:textSize="11sp" android:textStyle="bold"
+                    android:textColor="#4b5563" android:paddingTop="4dp" />
+                <TextView
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:textSize="11sp" android:textColor="#6b7280" android:paddingTop="10dp"
+                    android:text="Default-Namen: A0.. (Analog), DI0.. (Digital-Eingang), DO0.. (Digital-Ausgang). Eigene Namen stehen danach im Code als Symbole bereit (Palette unter „Board“). I²C/SPI-Pins sind hardwaregebunden und fest." />
+            </LinearLayout>
+        </ScrollView>
     </LinearLayout>
 
     <!-- ===================== Panel: GERÄT ===================== -->

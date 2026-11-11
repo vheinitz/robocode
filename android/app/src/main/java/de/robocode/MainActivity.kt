@@ -7,12 +7,14 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.hardware.usb.UsbDevice
 import android.hardware.usb.UsbManager
+import android.graphics.BitmapFactory
 import android.os.Build
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
 import android.util.Log
 import android.view.View
+import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
@@ -52,6 +54,16 @@ class MainActivity : AppCompatActivity() {
     private var grp: String? = null
     private var grpPort: String? = null
     private lateinit var spinnerBoard: Spinner
+    // Board-Ansicht (0.2)
+    private lateinit var spinnerBoardCfg: Spinner
+    private lateinit var boardRow: LinearLayout
+    private lateinit var txtBoardHint: TextView
+    private lateinit var txtBoardName: TextView
+    private lateinit var btnBoardClone: Button
+    // Eigene Pin-Belegung (Board fürs Projekt geklont); null = Board-Standard.
+    // Hinweis: noch nicht persistiert (Projektverwaltung 0.1 steht aus).
+    private var projectPins: MutableList<PinDesc>? = null
+    private var syncingBoard = false
     private lateinit var txtStatus: TextView
     private lateinit var txtDeviceInfo: TextView
     private lateinit var btnInstall: Button
@@ -64,6 +76,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var terminalOut: EditText
 
     private lateinit var panelCode: View
+    private lateinit var panelBoard: View
     private lateinit var panelDevice: View
     private lateinit var panelMain: View
     private lateinit var panelTerminal: View
@@ -110,6 +123,11 @@ class MainActivity : AppCompatActivity() {
         palette = findViewById(R.id.palette)
         paletteSub = findViewById(R.id.paletteSub)
         spinnerBoard = findViewById(R.id.spinnerBoard)
+        spinnerBoardCfg = findViewById(R.id.spinnerBoardCfg)
+        boardRow = findViewById(R.id.boardRow)
+        txtBoardHint = findViewById(R.id.txtBoardHint)
+        txtBoardName = findViewById(R.id.txtBoardName)
+        btnBoardClone = findViewById(R.id.btnBoardClone)
         txtStatus = findViewById(R.id.txtStatus)
         txtDeviceInfo = findViewById(R.id.txtDeviceInfo)
         btnInstall = findViewById(R.id.btnInstall)
@@ -121,19 +139,39 @@ class MainActivity : AppCompatActivity() {
         terminalInScroll = findViewById(R.id.terminalInScroll)
         terminalOut = findViewById(R.id.terminalOut)
         panelCode = findViewById(R.id.panelCode)
+        panelBoard = findViewById(R.id.panelBoard)
         panelDevice = findViewById(R.id.panelDevice)
         panelMain = findViewById(R.id.panelMain)
         panelTerminal = findViewById(R.id.panelTerminal)
         panelLog = findViewById(R.id.panelLog)
 
         usb = UsbSerialLink(this)
-        spinnerBoard.adapter = ArrayAdapter(
-            this, android.R.layout.simple_spinner_dropdown_item, Boards.ALL.map { it.name },
-        )
+        val boardNames = Boards.ALL.map { it.name }
+        spinnerBoard.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, boardNames)
+        spinnerBoardCfg.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, boardNames)
+
+        // Beide Board-Spinner (Gerät-Panel = Auto-Erkennung, Board-Panel = Konfig)
+        // halten dieselbe Auswahl. Board-Wechsel verwirft die eigene Pin-Belegung.
+        val onBoardPick = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, v: View?, pos: Int, id: Long) {
+                if (syncingBoard) return
+                syncingBoard = true
+                spinnerBoard.setSelection(pos)
+                spinnerBoardCfg.setSelection(pos)
+                syncingBoard = false
+                projectPins = null            // gehörte zum alten Board
+                buildBoardPanel()
+            }
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
+        }
+        spinnerBoard.onItemSelectedListener = onBoardPick
+        spinnerBoardCfg.onItemSelectedListener = onBoardPick
 
         // Top-Navigation
         findViewById<Button>(R.id.navCode).setOnClickListener { showPanel(panelCode) }
+        findViewById<Button>(R.id.navBoard).setOnClickListener { buildBoardPanel(); showPanel(panelBoard) }
         findViewById<Button>(R.id.navDevice).setOnClickListener { showPanel(panelDevice) }
+        btnBoardClone.setOnClickListener { if (projectPins == null) clonePins() else resetPins() }
         findViewById<Button>(R.id.navMain).setOnClickListener { refreshMainPy(); showPanel(panelMain) }
         findViewById<Button>(R.id.navTerminal).setOnClickListener { showPanel(panelTerminal) }
         findViewById<Button>(R.id.navLog).setOnClickListener { showPanel(panelLog) }
@@ -187,11 +225,12 @@ class MainActivity : AppCompatActivity() {
     // ---------------- Panels / Status ----------------
 
     private fun showPanel(p: View) {
-        for (v in listOf(panelCode, panelDevice, panelMain, panelTerminal, panelLog))
+        for (v in listOf(panelCode, panelBoard, panelDevice, panelMain, panelTerminal, panelLog))
             v.visibility = if (v === p) View.VISIBLE else View.GONE
     }
 
     private fun showPanelByName(name: String) = when (name) {
+        "board" -> { buildBoardPanel(); showPanel(panelBoard) }
         "device" -> showPanel(panelDevice)
         "main" -> { refreshMainPy(); showPanel(panelMain) }
         "terminal" -> showPanel(panelTerminal)
@@ -288,6 +327,8 @@ class MainActivity : AppCompatActivity() {
             paletteSub.addView(portButton("1/0", R.drawable.ic_arrow_out) { grpPort = "do"; refreshSub() })
             paletteSub.addView(portButton("1/0", R.drawable.ic_arrow_in) { grpPort = "di"; refreshSub() })
             paletteSub.addView(portButton("~", R.drawable.ic_arrow_in) { grpPort = "a"; refreshSub() })
+            // Eigene (umbenannte) Pins aus der Board-Ansicht als Chips.
+            for (np in namedPins()) chip(np.name) { insertAtCursor(np.name) }
         } else {
             chip("‹") { grpPort = null; refreshSub() }
             val count = when (grpPort) { "do" -> bk.doPins.size; "di" -> bk.diPins.size; else -> bk.aPins.size }
@@ -417,6 +458,170 @@ class MainActivity : AppCompatActivity() {
         info.contains("S3", true) -> "esp32s3"
         else -> null
     }
+
+    // ---------------- Board-Ansicht (0.2 — Pin-Belegung) ----------------
+
+    private val clonedPins get() = projectPins != null
+    private fun effectivePins(): List<PinDesc> = projectPins ?: selectedBoard().defaultPins()
+
+    private fun clonePins() { projectPins = selectedBoard().defaultPins().toMutableList(); buildBoardPanel() }
+    private fun resetPins() { projectPins = null; buildBoardPanel() }
+
+    /** Eigene (umbenannte) Pins mit nutzbarer Rolle → als Chips in der Palette. */
+    private fun namedPins(): List<PinDesc> = effectivePins().filter {
+        Boards.isValidName(it.name) && it.role != PinRole.NONE &&
+            !Regex("^(A|DI|DO|GPIO)\\d+$").matches(it.name)
+    }
+
+    /** Baut die Board-Ansicht: linke Pins | Board-Bild | rechte Pins. Die Reihen
+     *  werden über die Bildhöhe verteilt (weight=1), damit sie auf Höhe der
+     *  realen Pins liegen (wie im Web). */
+    private fun buildBoardPanel() {
+        if (!::boardRow.isInitialized) return
+        // Spinner-Auswahl ohne erneuten Listener-Durchlauf angleichen.
+        val idx = max(spinnerBoard.selectedItemPosition, 0)
+        if (spinnerBoardCfg.selectedItemPosition != idx) {
+            syncingBoard = true; spinnerBoardCfg.setSelection(idx); syncingBoard = false
+        }
+        val board = selectedBoard()
+        txtBoardName.text = board.name
+        btnBoardClone.text = if (clonedPins) "Standard wiederherstellen" else "Fürs Projekt klonen"
+        txtBoardHint.text = if (clonedPins) "Eigene Belegung — Namen & Bedeutung editierbar."
+            else "Standard-Belegung. Zum Umbenennen klonen."
+
+        boardRow.removeAllViews()
+        val byGpio = effectivePins().associateBy { it.gpio }
+        val colH = dp(420)   // Platz für bis zu 9 Reihen (S3) ohne Gedränge
+        boardRow.addView(buildPinColumn(board.layout.left, "l", byGpio, colH))
+        boardRow.addView(buildBoardImage(board, colH))
+        boardRow.addView(buildPinColumn(board.layout.right, "r", byGpio, colH))
+    }
+
+    private fun buildBoardImage(board: Board, colH: Int): View {
+        val iv = ImageView(this).apply {
+            adjustViewBounds = true
+            maxHeight = colH
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            layoutParams = LinearLayout.LayoutParams(dp(150), colH).apply { marginStart = dp(4); marginEnd = dp(4) }
+        }
+        val bmp = board.image?.let { path ->
+            try { assets.open(path).use { BitmapFactory.decodeStream(it) } } catch (_: Exception) { null }
+        }
+        if (bmp != null) iv.setImageBitmap(bmp) else iv.setImageResource(R.drawable.ic_chip)
+        return iv
+    }
+
+    private fun buildPinColumn(slots: List<Slot>, side: String, byGpio: Map<Int, PinDesc>, colH: Int): View =
+        LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            val pad = (colH * 0.06f).toInt()
+            setPadding(0, pad, 0, pad)
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, colH)
+            for (slot in slots) addView(
+                buildSlotRow(slot, side, byGpio),
+                LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, 0, 1f),
+            )
+        }
+
+    private fun buildSlotRow(slot: Slot, side: String, byGpio: Map<Int, PinDesc>): LinearLayout {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+        }
+        val children = ArrayList<View>()
+        if (slot.power != null) {
+            children.add(gpioLabelView(null))
+            children.add(powerChip(slot.power))
+            children.add(spacerView(dp(44)))
+        } else {
+            val p = byGpio[slot.gpio] ?: return row
+            children.add(gpioLabelView(p.gpio))
+            if (p.role in PinRole.RESERVED) {
+                children.add(reservedChip(p)); children.add(roleBadge(p.role))
+            } else {
+                children.add(nameField(p)); children.add(roleSpinner(p))
+            }
+        }
+        // `side == "l"`: Reihenfolge drehen, damit das GPIO-Label zur Platine zeigt.
+        for (v in if (side == "l") children.reversed() else children) row.addView(v)
+        return row
+    }
+
+    private fun chipBg(fill: Int, stroke: Int) = android.graphics.drawable.GradientDrawable().apply {
+        cornerRadius = dp(4).toFloat(); setColor(fill); setStroke(dp(1), stroke)
+    }
+
+    private fun gpioLabelView(gpio: Int?): TextView = TextView(this).apply {
+        text = if (gpio != null) "G$gpio" else ""
+        textSize = 10f; setTextColor(0xFF9CA3AF.toInt())
+        typeface = android.graphics.Typeface.MONOSPACE
+        gravity = android.view.Gravity.END
+        setPadding(0, 0, dp(3), 0)
+        layoutParams = LinearLayout.LayoutParams(dp(30), LinearLayout.LayoutParams.WRAP_CONTENT)
+    }
+
+    private fun powerChip(power: String): TextView = TextView(this).apply {
+        text = power; textSize = 11f
+        typeface = android.graphics.Typeface.MONOSPACE
+        gravity = android.view.Gravity.CENTER
+        val dark = power == "GND"
+        setTextColor(if (dark) 0xFFFFFFFF.toInt() else 0xFFB91C1C.toInt())
+        background = chipBg(if (dark) 0xFF374151.toInt() else 0xFFFEE2E2.toInt(), if (dark) 0xFF374151.toInt() else 0xFFFCA5A5.toInt())
+        layoutParams = LinearLayout.LayoutParams(dp(70), dp(26))
+    }
+
+    private fun reservedChip(p: PinDesc): TextView = TextView(this).apply {
+        text = p.name; textSize = 11f
+        typeface = android.graphics.Typeface.MONOSPACE
+        gravity = android.view.Gravity.CENTER
+        setTextColor(0xFFB45309.toInt())
+        background = chipBg(0xFFFFFBEB.toInt(), 0xFFFCD34D.toInt())
+        layoutParams = LinearLayout.LayoutParams(dp(70), dp(26))
+    }
+
+    private fun roleBadge(role: PinRole): TextView = TextView(this).apply {
+        text = role.code; textSize = 10f; setTextColor(0xFFB45309.toInt())
+        typeface = android.graphics.Typeface.MONOSPACE
+        gravity = android.view.Gravity.CENTER
+        layoutParams = LinearLayout.LayoutParams(dp(44), LinearLayout.LayoutParams.WRAP_CONTENT)
+    }
+
+    private fun nameField(p: PinDesc): EditText = EditText(this).apply {
+        setText(p.name); textSize = 11f
+        typeface = android.graphics.Typeface.MONOSPACE
+        isEnabled = clonedPins
+        setSingleLine(true)
+        minHeight = 0; minimumHeight = dp(26)
+        setPadding(dp(4), dp(2), dp(4), dp(2))
+        inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+        layoutParams = LinearLayout.LayoutParams(dp(78), LinearLayout.LayoutParams.WRAP_CONTENT).apply { marginEnd = dp(2) }
+        fun refreshBorder() = run {
+            background = chipBg(if (clonedPins) 0xFFFFFFFF.toInt() else 0xFFF9FAFB.toInt(),
+                if (Boards.isValidName(text.toString())) 0xFFD1D5DB.toInt() else 0xFFF87171.toInt())
+        }
+        refreshBorder()
+        addTextChangedListener(object : TextWatcher {
+            override fun afterTextChanged(s: Editable?) { p.name = s?.toString() ?: ""; refreshBorder() }
+            override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+            override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+        })
+    }
+
+    private fun roleSpinner(p: PinDesc): Spinner {
+        val roles = PinRole.EDITABLE.filter { it != PinRole.A || p.adc }
+        return Spinner(this).apply {
+            adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, roles.map { it.code })
+            setSelection(roles.indexOf(p.role).coerceAtLeast(0))
+            isEnabled = clonedPins
+            layoutParams = LinearLayout.LayoutParams(dp(60), LinearLayout.LayoutParams.WRAP_CONTENT)
+            onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+                override fun onItemSelected(parent: AdapterView<*>?, v: View?, pos: Int, id: Long) { p.role = roles[pos] }
+                override fun onNothingSelected(parent: AdapterView<*>?) {}
+            }
+        }
+    }
+
+    private fun spacerView(w: Int): View = View(this).apply { layoutParams = LinearLayout.LayoutParams(w, dp(1)) }
 
     // ---------------- Auto-Connect / Erkennung ----------------
 
@@ -601,7 +806,7 @@ class MainActivity : AppCompatActivity() {
         } catch (e: Exception) { log("DSL-Asset fehlt: ${e.message}"); "" }
         return Assembler.assemble(
             Assembler.Parts(tabs["setup"] ?: "", tabs["lib"] ?: "", tabs["main"] ?: ""),
-            selectedBoard(), robopy,
+            selectedBoard(), robopy, projectPins,
         )
     }
 

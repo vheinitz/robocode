@@ -14,8 +14,9 @@ object Assembler {
         return "# ----- $title -----\n" + b.ifEmpty { fallback }
     }
 
-    /** [robopySource] stammt aus assets/dsl/robopy.py. */
-    fun assemble(parts: Parts, board: Board, robopySource: String): String {
+    /** [robopySource] stammt aus assets/dsl/robopy.py. [pins] ist die eigene
+     *  Pin-Belegung (Board fürs Projekt geklont, 0.2); null = Board-Standard. */
+    fun assemble(parts: Parts, board: Board, robopySource: String, pins: List<PinDesc>? = null): String {
         val header = listOf(
             "# ======================================================================",
             "# main.py — zusammengebaut von RoboCode (nativ, EeZear-Stil, KEIN Transpiler)",
@@ -32,6 +33,7 @@ object Assembler {
             "",
             "# ----- Vordefinierte Pins für ${board.name} (versteckt) -----",
             board.predefinedPinLines(),
+            *(if (pins != null && pins.isNotEmpty()) arrayOf("", Boards.customPinLines(pins)) else emptyArray<String>()),
             "",
             section("SETUP (Geräte an Pins)", parts.setup, "# (noch keine Geräte)"),
             "",
