@@ -279,9 +279,9 @@ export default function App() {
   // Reihenfolge, damit das GPIO-Label jeweils zur Platine zeigt (wie im Pinout).
   // Reihe ohne eigenes py: der Abstand kommt aus justify-between der Spalte,
   // damit die Reihen auf Höhe der realen Pins liegen.
-  const rowCls = (side: 'l' | 'r') => `flex items-center gap-1 ${side === 'l' ? 'flex-row-reverse' : ''}`
+  const rowCls = (side: 'l' | 'r') => `flex items-center gap-0.5 ${side === 'l' ? 'flex-row-reverse' : ''}`
   const gpioLabel = (gpio: number) => (
-    <span className="w-9 shrink-0 text-right font-mono text-[10px] text-gray-400">G{gpio}</span>
+    <span className="w-6 shrink-0 text-right font-mono text-[10px] text-gray-400">G{gpio}</span>
   )
 
   const renderPin = (p: PinDesc, side: 'l' | 'r') => {
@@ -291,12 +291,12 @@ export default function App() {
         <div key={p.gpio} className={rowCls(side)}>
           {gpioLabel(p.gpio)}
           <span
-            className="w-20 rounded border border-amber-300 bg-amber-50 px-1 py-0.5 text-center font-mono text-[11px] text-amber-700"
+            className="w-10 rounded border border-amber-300 bg-amber-50 px-0.5 py-0.5 text-center font-mono text-[11px] text-amber-700"
             title={`${ROLE_LABEL[p.role]} — fest (${p.note ?? p.name})`}
           >
             {p.name}
           </span>
-          <span className="w-12 shrink-0 text-center font-mono text-[10px] text-amber-600">{p.role}</span>
+          <span className="w-8 shrink-0 text-center font-mono text-[10px] text-amber-600">{p.role}</span>
         </div>
       )
     }
@@ -307,7 +307,7 @@ export default function App() {
           value={p.name}
           disabled={!cloned}
           onChange={(e) => updatePin(p.gpio, { name: e.target.value })}
-          className={`w-20 rounded border px-1 py-0.5 font-mono text-[11px] ${
+          className={`w-10 rounded border px-0.5 py-0.5 font-mono text-[11px] ${
             cloned ? 'border-gray-300 bg-white text-gray-800' : 'border-transparent bg-gray-50 text-gray-500'
           } ${isValidName(p.name) ? '' : 'border-red-400 text-red-600'}`}
         />
@@ -315,7 +315,7 @@ export default function App() {
           value={p.role}
           disabled={!cloned}
           onChange={(e) => updatePin(p.gpio, { role: e.target.value as PinRole })}
-          className={`w-12 rounded border px-0.5 py-0.5 text-[11px] ${
+          className={`w-9 rounded border px-0 py-0.5 text-[11px] ${
             cloned ? 'border-gray-300 bg-white text-gray-700' : 'border-transparent bg-gray-50 text-gray-500'
           }`}
           title={p.adc ? 'ADC-fähig' : 'nur digital'}
@@ -335,9 +335,9 @@ export default function App() {
         slot.power === 'GND' ? 'border-gray-700 bg-gray-700 text-white' : 'border-red-300 bg-red-100 text-red-700'
       return (
         <div key={`${side}-pwr-${slot.power}`} className={rowCls(side)}>
-          <span className="w-9 shrink-0" />
-          <span className={`w-20 rounded border px-1 py-0.5 text-center font-mono text-[11px] ${color}`}>{slot.power}</span>
-          <span className="w-12 shrink-0" />
+          <span className="w-6 shrink-0" />
+          <span className={`w-10 rounded border px-0.5 py-0.5 text-center font-mono text-[11px] ${color}`}>{slot.power}</span>
+          <span className="w-8 shrink-0" />
         </div>
       )
     }
@@ -435,6 +435,13 @@ export default function App() {
                 )
               })}
             </div>
+            <button
+              title="Zuweisen  =  (immer verfügbar)"
+              onClick={() => insertToken(' = ')}
+              className="inline-flex shrink-0 items-center justify-center rounded border border-gray-300 bg-white px-2 py-0.5 font-mono text-[13px] text-gray-700 hover:border-teal-400 hover:text-teal-700"
+            >
+              =
+            </button>
             <button
               title="Rückgängig"
               onClick={() => editorRef.current?.undo()}
@@ -586,35 +593,32 @@ export default function App() {
       {/* Panel: BOARD (0.2) */}
       {view === 'board' && (
         <div className="flex min-h-0 flex-1 flex-col overflow-auto bg-white">
-          <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-gray-200 bg-gray-50 px-3 py-2">
+          <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-gray-200 bg-gray-50 px-2 py-0.5">
             <select
               value={project.boardId}
               onChange={(e) => setBoard(e.target.value)}
-              className="rounded border border-gray-300 bg-white px-2 py-1 text-sm text-gray-800"
+              className="rounded border border-gray-300 bg-white px-1 py-0 text-xs text-gray-800"
             >
               {BOARDS.map((b) => (
                 <option key={b.id} value={b.id}>{b.name}</option>
               ))}
             </select>
             {!cloned ? (
-              <button onClick={clonePins} className="rounded border border-teal-300 bg-teal-50 px-2 py-1 text-xs text-teal-700 hover:bg-teal-100">
-                Fürs Projekt klonen &amp; Pins benennen
+              <button onClick={clonePins} className="rounded border border-teal-300 bg-teal-50 px-2 py-0.5 text-xs text-teal-700 hover:bg-teal-100">
+                Klonen
               </button>
             ) : (
-              <button onClick={resetPins} className="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 hover:bg-gray-50">
-                Standard wiederherstellen
+              <button onClick={resetPins} className="rounded border border-gray-300 bg-white px-2 py-0.5 text-xs text-gray-700 hover:bg-gray-50">
+                Standard
               </button>
             )}
-            <span className="text-[11px] text-gray-500">
-              {cloned ? 'Eigene Belegung — Namen & Bedeutung editierbar.' : 'Standard-Belegung. Zum Umbenennen klonen.'}
-            </span>
           </div>
 
           {/* Board-Bild mittig, Pin-Controls links/rechts drumherum.
               items-stretch → die Spalten bekommen die Bildhöhe; justify-between
               verteilt die Pin-Reihen über die Platine, sodass sie auf Höhe der
               realen Stiftleisten liegen. py-[6%] = schmaler USB-C-Rand oben. */}
-          <div className="flex items-stretch justify-center gap-2 p-3">
+          <div className="flex items-stretch justify-center gap-0.5 p-3">
             <div className="flex flex-col justify-between py-[6%]">{board.layout.left.map((s) => renderSlot(s, 'l'))}</div>
             {imgSrc ? (
               <img src={imgSrc} alt={board.name} className="max-h-[60vh] w-auto max-w-[200px] shrink-0 self-center rounded border border-gray-200" />
@@ -622,13 +626,6 @@ export default function App() {
               <div className="flex h-40 w-32 shrink-0 items-center justify-center self-center rounded border border-dashed border-gray-300 text-gray-400"><Icon name="chip" size={40} /></div>
             )}
             <div className="flex flex-col justify-between py-[6%]">{board.layout.right.map((s) => renderSlot(s, 'r'))}</div>
-          </div>
-          <div className="-mt-1 text-center text-[11px] font-medium text-gray-600">{board.name}</div>
-
-          <div className="px-3 pb-4 text-[11px] text-gray-500">
-            Default-Namen: <span className="font-mono">A0..</span> (Analog), <span className="font-mono">DI0..</span> (Digital-Eingang),
-            <span className="font-mono"> DO0..</span> (Digital-Ausgang). Eigene Namen stehen danach im Code als Symbole bereit
-            (in der Palette unter „Board").
           </div>
         </div>
       )}
