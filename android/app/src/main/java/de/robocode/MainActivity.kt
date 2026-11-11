@@ -88,6 +88,14 @@ class MainActivity : AppCompatActivity() {
     private var suppressWatcher = false
     private var editorLoaded = false
 
+    // Projektverwaltung (0.1)
+    private var currentId = ""
+    private var currentName = "Mein Programm"
+    private var projectsInfo: List<ProjectStore.Info> = emptyList()
+    // Zuletzt angewandte Board-Position; verhindert, dass der anfängliche
+    // Spinner-Callback eine gerade geladene Pin-Belegung verwirft.
+    private var lastBoardIdx = -1
+
     @Volatile private var busy = false
     // Wenn per Intent-Extra ein Panel vorgegeben ist (z. B. für Screenshots),
     // soll Auto-Connect das Panel nicht umschalten.
@@ -153,13 +161,15 @@ class MainActivity : AppCompatActivity() {
         // halten dieselbe Auswahl. Board-Wechsel verwirft die eigene Pin-Belegung.
         val onBoardPick = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: AdapterView<*>?, v: View?, pos: Int, id: Long) {
-                if (syncingBoard) return
+                if (syncingBoard || pos == lastBoardIdx) return
+                lastBoardIdx = pos
                 syncingBoard = true
                 spinnerBoard.setSelection(pos)
                 spinnerBoardCfg.setSelection(pos)
                 syncingBoard = false
                 projectPins = null            // gehörte zum alten Board
                 buildBoardPanel()
+                saveCurrentProject()
             }
             override fun onNothingSelected(parent: AdapterView<*>?) {}
         }
@@ -173,6 +183,16 @@ class MainActivity : AppCompatActivity() {
         btnBoardClone.setOnClickListener { if (projectPins == null) clonePins() else resetPins() }
         // Zuweisungs-Operator: fester Knopf rechts in der Leiste (nicht verschwindbar).
         findViewById<TextView>(R.id.btnAssign).setOnClickListener { insertAtCursor(" = ") }
+
+        // Edit-Leiste unter dem Editor
+        findViewById<TextView>(R.id.edTab).setOnClickListener { edInsertTab() }
+        findViewById<TextView>(R.id.edBack).setOnClickListener { edBackspace() }
+        findViewById<TextView>(R.id.edDelLine).setOnClickListener { edDeleteLine() }
+        findViewById<TextView>(R.id.edUp).setOnClickListener { edLineMove(-1) }
+        findViewById<TextView>(R.id.edDown).setOnClickListener { edLineMove(1) }
+
+        // Projekt-Menü (Titelzeile)
+        findViewById<TextView>(R.id.btnProject).setOnClickListener { saveCurrentProject(); showProjectDialog() }
         findViewById<Button>(R.id.navMain).setOnClickListener { refreshMainPy(); showPanel(panelMain) }
         findViewById<Button>(R.id.navTerminal).setOnClickListener { showPanel(panelTerminal) }
         findViewById<Button>(R.id.navLog).setOnClickListener { showPanel(panelLog) }
@@ -209,7 +229,7 @@ class MainActivity : AppCompatActivity() {
             override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
         })
 
-        switchTab("main")   // nur MAIN sichtbar; SETUP/LIB sind ausgeblendet
+        loadCurrentProject()   // lädt zuletzt genutztes Projekt; zeigt MAIN
         showPanel(panelCode)
         intent?.getStringExtra("panel")?.let { pinnedPanel = it; showPanelByName(it) }
 
@@ -446,6 +466,47 @@ class MainActivity : AppCompatActivity() {
         editor.text.replace(min(s, e), max(s, e), t)
     }
 
+    // ---- Edit-Leiste: Tab/Backspace/Zeile löschen/Zeilen-Navigation ----
+
+    private val tabWidth = 4
+
+    private fun edInsertTab() {
+        val s = max(editor.selectionStart, 0); val e = max(editor.selectionEnd, 0)
+        editor.text.replace(min(s, e), max(s, e), " ".repeat(tabWidth))
+    }
+
+    /** Backspace: Auswahl löschen; sonst ein Zeichen — bei Leerzeichen links aber
+     *  bis zu [tabWidth] am Stück (wie ein Tab zurück). */
+    private fun edBackspace() {
+        val s = editor.selectionStart; val e = editor.selectionEnd
+        if (s < 0) return
+        if (s != e) { editor.text.delete(min(s, e), max(s, e)); return }
+        if (s == 0) return
+        val t = editor.text
+        var n = 0
+        while (s - 1 - n >= 0 && t[s - 1 - n] == ' ' && n < tabWidth) n++
+        editor.text.delete(s - (if (n > 0) n else 1), s)
+    }
+
+    /** Aktuelle Zeile samt Zeilenumbruch löschen. */
+    private fun edDeleteLine() {
+        val t = editor.text; val pos = max(editor.selectionStart, 0)
+        var start = pos; while (start > 0 && t[start - 1] != '\n') start--
+        var end = pos; while (end < t.length && t[end] != '\n') end++
+        if (end < t.length) end++ else if (start > 0) start--  // Umbruch mitnehmen
+        editor.text.delete(start, end)
+    }
+
+    /** Cursor eine Zeile hoch (dir=-1) / runter (dir=+1), Spalte beibehalten. */
+    private fun edLineMove(dir: Int) {
+        val layout = editor.layout ?: return
+        val pos = max(editor.selectionStart, 0)
+        val target = layout.getLineForOffset(pos) + dir
+        if (target < 0 || target >= layout.lineCount) return
+        val x = layout.getPrimaryHorizontal(pos)
+        editor.setSelection(layout.getOffsetForHorizontal(target, x).coerceIn(0, editor.text.length))
+    }
+
     private fun selectedBoard(): Board = Boards.ALL[max(spinnerBoard.selectedItemPosition, 0)]
 
     private fun setBoard(id: String) {
@@ -465,8 +526,8 @@ class MainActivity : AppCompatActivity() {
     private val clonedPins get() = projectPins != null
     private fun effectivePins(): List<PinDesc> = projectPins ?: selectedBoard().defaultPins()
 
-    private fun clonePins() { projectPins = selectedBoard().defaultPins().toMutableList(); buildBoardPanel() }
-    private fun resetPins() { projectPins = null; buildBoardPanel() }
+    private fun clonePins() { projectPins = selectedBoard().defaultPins().toMutableList(); buildBoardPanel(); saveCurrentProject() }
+    private fun resetPins() { projectPins = null; buildBoardPanel(); saveCurrentProject() }
 
     /** Eigene (umbenannte) Pins mit nutzbarer Rolle → als Chips in der Palette. */
     private fun namedPins(): List<PinDesc> = effectivePins().filter {
@@ -528,34 +589,23 @@ class MainActivity : AppCompatActivity() {
         }
         val children = ArrayList<View>()
         if (slot.power != null) {
-            children.add(gpioLabelView(null))
             children.add(powerChip(slot.power))
-            children.add(spacerView(dp(46)))
+            children.add(spacerView(dp(42)))
         } else {
             val p = byGpio[slot.gpio] ?: return row
-            children.add(gpioLabelView(p.gpio))
             if (p.role in PinRole.RESERVED) {
                 children.add(reservedChip(p)); children.add(roleBadge(p.role))
             } else {
                 children.add(nameField(p)); children.add(roleSpinner(p))
             }
         }
-        // `side == "l"`: Reihenfolge drehen, damit das GPIO-Label zur Platine zeigt.
+        // `side == "l"`: Reihenfolge drehen, damit Name/Rolle zur Platine passen.
         for (v in if (side == "l") children.reversed() else children) row.addView(v)
         return row
     }
 
     private fun chipBg(fill: Int, stroke: Int) = android.graphics.drawable.GradientDrawable().apply {
         cornerRadius = dp(4).toFloat(); setColor(fill); setStroke(dp(1), stroke)
-    }
-
-    private fun gpioLabelView(gpio: Int?): TextView = TextView(this).apply {
-        text = if (gpio != null) "G$gpio" else ""
-        textSize = 10f; setTextColor(0xFF9CA3AF.toInt())
-        typeface = android.graphics.Typeface.MONOSPACE
-        gravity = android.view.Gravity.END
-        setPadding(0, 0, dp(2), 0)
-        layoutParams = LinearLayout.LayoutParams(dp(26), LinearLayout.LayoutParams.WRAP_CONTENT)
     }
 
     private fun powerChip(power: String): TextView = TextView(this).apply {
@@ -581,7 +631,7 @@ class MainActivity : AppCompatActivity() {
         text = role.code; textSize = 10f; setTextColor(0xFFB45309.toInt())
         typeface = android.graphics.Typeface.MONOSPACE
         gravity = android.view.Gravity.CENTER
-        layoutParams = LinearLayout.LayoutParams(dp(34), LinearLayout.LayoutParams.WRAP_CONTENT)
+        layoutParams = LinearLayout.LayoutParams(dp(42), LinearLayout.LayoutParams.WRAP_CONTENT)
     }
 
     private fun nameField(p: PinDesc): EditText = EditText(this).apply {
@@ -613,7 +663,7 @@ class MainActivity : AppCompatActivity() {
             isEnabled = clonedPins
             minimumWidth = 0
             setPadding(0, 0, 0, 0)
-            layoutParams = LinearLayout.LayoutParams(dp(46), LinearLayout.LayoutParams.WRAP_CONTENT)
+            layoutParams = LinearLayout.LayoutParams(dp(42), LinearLayout.LayoutParams.WRAP_CONTENT)
             onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
                 override fun onItemSelected(parent: AdapterView<*>?, v: View?, pos: Int, id: Long) { p.role = roles[pos] }
                 override fun onNothingSelected(parent: AdapterView<*>?) {}
@@ -928,11 +978,171 @@ class MainActivity : AppCompatActivity() {
 
     private fun toast(s: String) = runOnUiThread { Toast.makeText(this, s, Toast.LENGTH_SHORT).show() }
 
+    override fun onPause() {
+        super.onPause()
+        saveCurrentProject()   // Projekt (Code, Board, Pins, Name) sichern
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         terminalRunning = false
         if (usb.isOpen) usb.close()
         try { unregisterReceiver(usbReceiver) } catch (_: Exception) {}
+    }
+
+    // ---------------- Projektverwaltung (0.1) ----------------
+
+    private fun createSeedProject() = RoboProject(
+        ProjectStore.newId(), "Mein Programm", Boards.ALL[0].id, null, seedSetup(), seedMain(), seedLib(),
+    )
+
+    /** Zuletzt genutztes Projekt laden — oder implizit ein Default anlegen. */
+    private fun loadCurrentProject() {
+        val p = ProjectStore.currentId(this)?.let { ProjectStore.load(this, it) }
+            ?: ProjectStore.list(this).firstOrNull()?.let { ProjectStore.load(this, it.id) }
+            ?: createSeedProject().also { ProjectStore.save(this, it); ProjectStore.setCurrent(this, it.id) }
+        applyProject(p)
+    }
+
+    /** Ein Projekt in die Oberfläche übernehmen (Code-Tabs, Board, Pins, Name). */
+    private fun applyProject(p: RoboProject) {
+        currentId = p.id; currentName = p.name
+        val idx = Boards.ALL.indexOfFirst { it.id == p.boardId }.coerceAtLeast(0)
+        syncingBoard = true
+        spinnerBoard.setSelection(idx); spinnerBoardCfg.setSelection(idx)
+        syncingBoard = false
+        lastBoardIdx = idx
+        projectPins = p.pins
+        tabs["setup"] = p.setup; tabs["main"] = p.main; tabs["lib"] = p.lib
+        editorLoaded = false
+        switchTab("main")
+        ProjectStore.setCurrent(this, p.id)
+        projectsInfo = ProjectStore.list(this)
+        updateProjectTitle()
+        if (::boardRow.isInitialized) buildBoardPanel()
+    }
+
+    private fun updateProjectTitle() {
+        findViewById<TextView>(R.id.btnProject).text = "$currentName  ▾"
+    }
+
+    /** Aktuellen Oberflächen-Zustand als Projekt-Datensatz einsammeln. */
+    private fun snapshotProject(): RoboProject {
+        if (editorLoaded) tabs[active] = editor.text?.toString() ?: ""
+        return RoboProject(
+            currentId, currentName, selectedBoard().id, projectPins,
+            tabs["setup"] ?: "", tabs["main"] ?: "", tabs["lib"] ?: "",
+        )
+    }
+
+    private fun saveCurrentProject() {
+        if (currentId.isEmpty()) return
+        val p = snapshotProject()
+        ProjectStore.save(this, p); ProjectStore.setCurrent(this, p.id)
+        projectsInfo = ProjectStore.list(this)
+    }
+
+    private fun uniqueName(base: String): String {
+        val names = projectsInfo.map { it.name }.toSet()
+        if (base !in names) return base
+        var i = 2; while ("$base $i" in names) i++; return "$base $i"
+    }
+
+    private fun newProject() {
+        saveCurrentProject()
+        val p = createSeedProject().also { it.name = uniqueName("Programm") }
+        ProjectStore.save(this, p); applyProject(p)
+    }
+
+    private fun duplicateProject() {
+        val cur = snapshotProject()
+        val copy = cur.copy(
+            id = ProjectStore.newId(), name = uniqueName("${cur.name} Kopie"),
+            pins = cur.pins?.map { it.copy() }?.toMutableList(),
+        )
+        ProjectStore.save(this, copy); applyProject(copy)
+    }
+
+    private fun openProject(id: String) {
+        saveCurrentProject()
+        ProjectStore.load(this, id)?.let { applyProject(it) }
+    }
+
+    private fun removeProject(id: String) {
+        ProjectStore.delete(this, id)
+        projectsInfo = ProjectStore.list(this)
+        if (id == currentId) {
+            val next = projectsInfo.firstOrNull()?.let { ProjectStore.load(this, it.id) }
+                ?: createSeedProject().also { ProjectStore.save(this, it) }
+            applyProject(next)
+        }
+    }
+
+    private fun renameCurrent(name: String) {
+        currentName = name.trim().ifBlank { "Programm" }
+        saveCurrentProject(); updateProjectTitle()
+    }
+
+    /** Projekt-Menü: umbenennen, Neu, Kopieren, öffnen, löschen. */
+    private fun showProjectDialog() {
+        val ctx = this
+        projectsInfo = ProjectStore.list(this)
+        val root = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(18), dp(12), dp(18), dp(4)) }
+        root.addView(TextView(ctx).apply { text = "Aktuelles Projekt"; textSize = 11f; setTextColor(GRAY) })
+        val nameEdit = EditText(ctx).apply { setText(currentName); setSingleLine(true) }
+        root.addView(nameEdit)
+
+        val listBox = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
+        val dialog = AlertDialog.Builder(ctx)
+            .setView(ScrollView(ctx).apply { addView(root) })
+            .setPositiveButton("Fertig", null).create()
+
+        fun applyName() = renameCurrent(nameEdit.text?.toString() ?: currentName)
+        fun refresh() {
+            listBox.removeAllViews()
+            for (info in projectsInfo) {
+                val isCur = info.id == currentId
+                listBox.addView(LinearLayout(ctx).apply {
+                    orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.CENTER_VERTICAL
+                    addView(TextView(ctx).apply {
+                        text = info.name + (if (isCur) "  •" else "")
+                        textSize = 14f; setPadding(dp(2), dp(8), dp(8), dp(8))
+                        setTextColor(if (isCur) GREEN else ICON)
+                        layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                        setOnClickListener { applyName(); openProject(info.id); dialog.dismiss() }
+                    })
+                    addView(TextView(ctx).apply {
+                        text = "✕"; textSize = 15f; setTextColor(GRAY); setPadding(dp(10), dp(8), dp(6), dp(8))
+                        setOnClickListener { confirmDelete(info) { projectsInfo = ProjectStore.list(ctx); refresh() } }
+                    })
+                })
+            }
+        }
+
+        root.addView(LinearLayout(ctx).apply {
+            orientation = LinearLayout.HORIZONTAL; setPadding(0, dp(8), 0, dp(8))
+            addView(Button(ctx).apply {
+                text = "+ Neu"; textSize = 12f
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                setOnClickListener { applyName(); newProject(); dialog.dismiss() }
+            })
+            addView(Button(ctx).apply {
+                text = "Kopieren"; textSize = 12f
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                setOnClickListener { applyName(); duplicateProject(); dialog.dismiss() }
+            })
+        })
+        root.addView(TextView(ctx).apply { text = "Projekte"; textSize = 11f; setTextColor(GRAY); setPadding(0, dp(4), 0, 0) })
+        root.addView(listBox)
+        refresh()
+        dialog.show()
+    }
+
+    private fun confirmDelete(info: ProjectStore.Info, after: () -> Unit) {
+        AlertDialog.Builder(this).setTitle("Projekt löschen?")
+            .setMessage("„${info.name}“ wird dauerhaft gelöscht.")
+            .setPositiveButton("Löschen") { _, _ -> removeProject(info.id); after() }
+            .setNegativeButton("Abbrechen", null).show()
     }
 
     // ---------------- Seeds ----------------

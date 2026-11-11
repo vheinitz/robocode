@@ -23,6 +23,15 @@
             android:textStyle="bold"
             android:letterSpacing="0.02" />
 
+        <TextView android:id="@+id/btnProject"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:paddingStart="8dp" android:paddingEnd="8dp" android:paddingTop="2dp" android:paddingBottom="2dp"
+            android:background="@drawable/bg_icon_button"
+            android:textSize="12sp" android:textColor="#374151"
+            android:maxWidth="150dp" android:singleLine="true" android:ellipsize="end"
+            android:text="Projekt ▾" android:clickable="true" android:focusable="true" />
+
         <TextView android:id="@+id/txtStatus"
             android:layout_width="0dp"
             android:layout_weight="1"
@@ -125,6 +134,36 @@
             android:fontFamily="monospace" android:textSize="13sp"
             android:importantForAutofill="no"
             android:background="#12151b" android:textColor="#e6e9ef" android:padding="6dp" />
+
+        <!-- Edit-Leiste: Tab, Backspace, Zeile löschen, Zeile hoch/runter -->
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center_vertical" android:paddingTop="3dp">
+            <TextView android:id="@+id/edTab" android:text="⇥"
+                android:layout_width="0dp" android:layout_weight="1" android:layout_height="32dp"
+                android:gravity="center" android:textSize="16sp" android:textColor="#374151"
+                android:background="@drawable/bg_icon_button" android:layout_marginEnd="4dp"
+                android:clickable="true" android:focusable="true" />
+            <TextView android:id="@+id/edBack" android:text="⌫"
+                android:layout_width="0dp" android:layout_weight="1" android:layout_height="32dp"
+                android:gravity="center" android:textSize="16sp" android:textColor="#374151"
+                android:background="@drawable/bg_icon_button" android:layout_marginEnd="4dp"
+                android:clickable="true" android:focusable="true" />
+            <TextView android:id="@+id/edDelLine" android:text="⌦ Zeile"
+                android:layout_width="0dp" android:layout_weight="1.4" android:layout_height="32dp"
+                android:gravity="center" android:textSize="13sp" android:textColor="#374151"
+                android:background="@drawable/bg_icon_button" android:layout_marginEnd="4dp"
+                android:clickable="true" android:focusable="true" />
+            <TextView android:id="@+id/edUp" android:text="↑"
+                android:layout_width="0dp" android:layout_weight="1" android:layout_height="32dp"
+                android:gravity="center" android:textSize="16sp" android:textColor="#374151"
+                android:background="@drawable/bg_icon_button" android:layout_marginEnd="4dp"
+                android:clickable="true" android:focusable="true" />
+            <TextView android:id="@+id/edDown" android:text="↓"
+                android:layout_width="0dp" android:layout_weight="1" android:layout_height="32dp"
+                android:gravity="center" android:textSize="16sp" android:textColor="#374151"
+                android:background="@drawable/bg_icon_button"
+                android:clickable="true" android:focusable="true" />
+        </LinearLayout>
     </LinearLayout>
 
     <!-- ===================== Panel: BOARD (0.2 — Pin-Belegung) ===================== -->
