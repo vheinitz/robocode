@@ -17,6 +17,8 @@ data class RoboProject(
     var setup: String,
     var main: String,
     var lib: String,
+    // Roadmap 1: grafische Tafel (Widgets über den LOG-Kanal) je Projekt.
+    var dashboard: MutableList<Widget> = mutableListOf(),
 )
 
 /**
@@ -82,6 +84,14 @@ object ProjectStore {
             )
             o.put("pins", arr)
         }
+        if (p.dashboard.isNotEmpty()) {
+            val arr = JSONArray()
+            for (w in p.dashboard) arr.put(
+                JSONObject().put("id", w.id).put("type", w.type.code)
+                    .put("name", w.name).put("min", w.min).put("max", w.max),
+            )
+            o.put("dashboard", arr)
+        }
         return o
     }
 
@@ -98,10 +108,23 @@ object ProjectStore {
                 )
             }.toMutableList()
         } else null
+        val dashboard: MutableList<Widget> = if (o.has("dashboard") && !o.isNull("dashboard")) {
+            val arr = o.getJSONArray("dashboard")
+            (0 until arr.length()).map {
+                val wo = arr.getJSONObject(it)
+                Widget(
+                    wo.optString("id", newWidgetId()),
+                    WidgetType.from(wo.optString("type", "TXT")),
+                    wo.optString("name", ""),
+                    wo.optDouble("min", 0.0), wo.optDouble("max", 100.0),
+                )
+            }.toMutableList()
+        } else mutableListOf()
         return RoboProject(
             o.getString("id"), o.getString("name"),
             o.optString("boardId", Boards.ALL[0].id), pins,
             o.optString("setup", ""), o.optString("main", ""), o.optString("lib", ""),
+            dashboard,
         )
     }
 }

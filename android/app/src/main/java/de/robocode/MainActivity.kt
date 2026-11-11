@@ -72,6 +72,12 @@ class MainActivity : AppCompatActivity() {
     private lateinit var terminalIn: TextView
     private lateinit var terminalInScroll: ScrollView
     private lateinit var terminalOut: EditText
+    // Roadmap 1: grafische Tafel (Widgets über den LOG-Kanal) im Terminal-Panel.
+    private lateinit var dashScroll: ScrollView
+    private lateinit var dashBox: LinearLayout
+    private lateinit var btnDashAdd: Button
+    private lateinit var btnDashToggle: Button
+    private lateinit var terminalOutRow: View
 
     private lateinit var panelCode: View
     private lateinit var panelBoard: View
@@ -82,6 +88,14 @@ class MainActivity : AppCompatActivity() {
 
     // Läuft die Terminal-Leseschleife (Port bleibt offen, Programmausgabe wird gelesen)?
     @Volatile private var terminalRunning = false
+
+    // Roadmap 1: Tafel des aktuellen Projekts. dashViews bildet LOG-Namen (GROSS)
+    // auf die gespeisten Widget-Ansichten ab; ein Name darf mehrere speisen.
+    private var dashboard: MutableList<Widget> = mutableListOf()
+    private val dashViews = HashMap<String, MutableList<DashWidgetView>>()
+    private var dashMode = false
+    private val termLineBuf = StringBuilder()
+    private val pairRe = Regex("([A-Za-z_][A-Za-z0-9_]*)\\s*:\\s*([^\\s,;]+)")
 
     private val tabs = linkedMapOf("setup" to seedSetup(), "main" to seedMain(), "lib" to seedLib())
     private var active = "setup"
@@ -145,6 +159,11 @@ class MainActivity : AppCompatActivity() {
         terminalIn = findViewById(R.id.terminalIn)
         terminalInScroll = findViewById(R.id.terminalInScroll)
         terminalOut = findViewById(R.id.terminalOut)
+        dashScroll = findViewById(R.id.dashScroll)
+        dashBox = findViewById(R.id.dashBox)
+        btnDashAdd = findViewById(R.id.btnDashAdd)
+        btnDashToggle = findViewById(R.id.btnDashToggle)
+        terminalOutRow = findViewById(R.id.terminalOutRow)
         panelCode = findViewById(R.id.panelCode)
         panelBoard = findViewById(R.id.panelBoard)
         panelDevice = findViewById(R.id.panelDevice)
@@ -222,6 +241,9 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.btnTerminalStop).setOnClickListener { stopTerminal() }
         findViewById<Button>(R.id.btnTerminalSend).setOnClickListener { sendTerminalLine() }
         terminalOut.setOnEditorActionListener { _, _, _ -> sendTerminalLine(); true }
+        // Tafel (Roadmap 1): Modus umschalten + Widget anlegen.
+        btnDashToggle.setOnClickListener { setDashMode(!dashMode) }
+        btnDashAdd.setOnClickListener { showWidgetDialog(null) }
 
         editor.addTextChangedListener(object : TextWatcher {
             override fun afterTextChanged(s: Editable?) { if (!suppressWatcher) tabs[active] = s?.toString() ?: "" }
@@ -254,7 +276,8 @@ class MainActivity : AppCompatActivity() {
         "board" -> { buildBoardPanel(); showPanel(panelBoard) }
         "device" -> showPanel(panelDevice)
         "main" -> { refreshMainPy(); showPanel(panelMain) }
-        "terminal" -> showPanel(panelTerminal)
+        "terminal" -> { setDashMode(false); showPanel(panelTerminal) }
+        "tafel" -> { setDashMode(true); showPanel(panelTerminal); dashDemoFill() }
         "log" -> showPanel(panelLog)
         "info" -> { showPanel(panelDevice); onInfo() }
         else -> showPanel(panelCode)
@@ -878,7 +901,150 @@ class MainActivity : AppCompatActivity() {
         runOnUiThread {
             terminalIn.append(s)
             terminalInScroll.post { terminalInScroll.fullScroll(ScrollView.FOCUS_DOWN) }
+            feedDashboard(s)
         }
+    }
+
+    // ---------------- Tafel (Roadmap 1): LOG-Kanal → Widgets ----------------
+
+    /**
+     * Füttert die Tafel aus dem seriellen Textstrom. Zeilen können über mehrere
+     * Lese-Chunks zerteilt ankommen, darum ein Zeilenpuffer. Nur vollständige
+     * Zeilen werden geparst; erkannte `NAME:wert`-Paare speisen passende Widgets.
+     * Alles bleibt zusätzlich im Text-Terminal sichtbar (unbekannte Namen sowieso).
+     */
+    private fun feedDashboard(chunk: String) {
+        if (dashViews.isEmpty()) return
+        termLineBuf.append(chunk)
+        var nl = termLineBuf.indexOf("\n")
+        while (nl >= 0) {
+            dispatchLine(termLineBuf.substring(0, nl))
+            termLineBuf.delete(0, nl + 1)
+            nl = termLineBuf.indexOf("\n")
+        }
+        if (termLineBuf.length > 4096) termLineBuf.setLength(0) // Schutz gegen Dauerzeile ohne \n
+    }
+
+    private fun dispatchLine(line: String) {
+        for (m in pairRe.findAll(line)) {
+            val views = dashViews[m.groupValues[1].uppercase()] ?: continue
+            val raw = m.groupValues[2]
+            val num = raw.toDoubleOrNull()
+            for (v in views) v.feed(raw, num)
+        }
+    }
+
+    /**
+     * Nur-Screenshot-Hilfe: füllt die Tafel mit Beispielwerten, damit sie ohne
+     * echten ESP32 belegt aussieht. Erreichbar ausschließlich über das adb-Intent-
+     * Extra `panel=tafel` (im normalen UI nie), speichert nichts. Hat das Projekt
+     * keine Widgets, werden flüchtige Demo-Widgets gezeigt.
+     */
+    private fun dashDemoFill() {
+        if (pinnedPanel != "tafel") return
+        if (dashboard.isEmpty()) { dashboard = seedDashboard(); rebuildDashViews() }
+        for ((key, views) in dashViews) {
+            val sample = when (key) { "TEMP" -> "27"; "DIST" -> "63"; "LED" -> "1"; else -> "42" }
+            for (v in views) { for (x in listOf("5", "40", sample)) v.feed(x, x.toDoubleOrNull()) }
+        }
+    }
+
+    /** Tafel ⇄ Text umschalten (gleicher Datenstrom, andere Darstellung). */
+    private fun setDashMode(on: Boolean) {
+        dashMode = on
+        terminalInScroll.visibility = if (on) View.GONE else View.VISIBLE
+        terminalOutRow.visibility = if (on) View.GONE else View.VISIBLE
+        dashScroll.visibility = if (on) View.VISIBLE else View.GONE
+        btnDashAdd.visibility = if (on) View.VISIBLE else View.GONE
+        btnDashToggle.text = if (on) "Text" else "Tafel"
+    }
+
+    /** Tafel-Ansichten aus [dashboard] neu aufbauen und nach LOG-Namen indizieren. */
+    private fun rebuildDashViews() {
+        dashBox.removeAllViews()
+        dashViews.clear()
+        if (dashboard.isEmpty()) {
+            dashBox.addView(TextView(this).apply {
+                text = "Noch keine Anzeige. „+ Widget“ tippen.\n" +
+                    "Im Programm sende z. B.  log(\"TEMP:\" + str(wert))"
+                setTextColor(GRAY); textSize = 12f; setPadding(dp(14), dp(16), dp(14), dp(16))
+            })
+            return
+        }
+        for (w in dashboard) {
+            val view = DashWidgetView(this, w).apply {
+                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                setOnClickListener { showWidgetDialog(w) }
+            }
+            dashBox.addView(view)
+            dashViews.getOrPut(w.name.uppercase()) { mutableListOf() }.add(view)
+        }
+    }
+
+    /** Widget anlegen oder bearbeiten (Typ, LOG-Name, Bereich); existierend löschbar. */
+    private fun showWidgetDialog(existing: Widget?) {
+        val ctx = this
+        val root = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(18), dp(10), dp(18), dp(4)) }
+
+        root.addView(TextView(ctx).apply { text = "Typ"; textSize = 11f; setTextColor(GRAY) })
+        val typeSpinner = Spinner(ctx).apply {
+            adapter = ArrayAdapter(ctx, android.R.layout.simple_spinner_dropdown_item, WidgetType.entries.map { it.label })
+            setSelection(WidgetType.entries.indexOf(existing?.type ?: WidgetType.GAU))
+        }
+        root.addView(typeSpinner)
+
+        root.addView(TextView(ctx).apply { text = "LOG-Name (z. B. DIST)"; textSize = 11f; setTextColor(GRAY); setPadding(0, dp(8), 0, 0) })
+        val nameEdit = EditText(ctx).apply { setText(existing?.name ?: ""); setSingleLine(true); hint = "DIST" }
+        root.addView(nameEdit)
+
+        val rangeRow = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, dp(8), 0, 0) }
+        val minEdit = EditText(ctx).apply {
+            setText((existing?.min ?: 0.0).let { if (it == it.toLong().toDouble()) it.toLong().toString() else it.toString() })
+            hint = "min"; inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_FLAG_SIGNED or android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        val maxEdit = EditText(ctx).apply {
+            setText((existing?.max ?: 100.0).let { if (it == it.toLong().toDouble()) it.toLong().toString() else it.toString() })
+            hint = "max"; inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_FLAG_SIGNED or android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        val rangeLabel = TextView(ctx).apply { text = "Bereich"; textSize = 11f; setTextColor(GRAY); setPadding(0, dp(8), 0, 0) }
+        rangeRow.addView(minEdit); rangeRow.addView(maxEdit)
+        root.addView(rangeLabel); root.addView(rangeRow)
+
+        // Bereich nur für Zeiger/Balken sinnvoll.
+        fun syncRange() {
+            val needs = typeSpinner.selectedItemPosition.let { WidgetType.entries[it] } in listOf(WidgetType.GAU, WidgetType.BAR)
+            rangeLabel.visibility = if (needs) View.VISIBLE else View.GONE
+            rangeRow.visibility = if (needs) View.VISIBLE else View.GONE
+        }
+        typeSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(p: AdapterView<*>?, v: View?, pos: Int, id: Long) = syncRange()
+            override fun onNothingSelected(p: AdapterView<*>?) {}
+        }
+        syncRange()
+
+        val builder = AlertDialog.Builder(ctx)
+            .setTitle(if (existing == null) "Widget anlegen" else "Widget bearbeiten")
+            .setView(ScrollView(ctx).apply { addView(root) })
+            .setPositiveButton("Speichern") { _, _ ->
+                val name = nameEdit.text?.toString()?.trim().orEmpty()
+                if (name.isEmpty()) { toast("LOG-Name fehlt"); return@setPositiveButton }
+                val type = WidgetType.entries[typeSpinner.selectedItemPosition]
+                val mn = minEdit.text?.toString()?.toDoubleOrNull() ?: 0.0
+                val mx = maxEdit.text?.toString()?.toDoubleOrNull() ?: 100.0
+                if (existing == null) {
+                    dashboard.add(Widget(newWidgetId(), type, name, mn, mx))
+                } else {
+                    existing.type = type; existing.name = name; existing.min = mn; existing.max = mx
+                }
+                rebuildDashViews(); saveCurrentProject()
+            }
+            .setNegativeButton("Abbrechen", null)
+        if (existing != null) builder.setNeutralButton("Löschen") { _, _ ->
+            dashboard.remove(existing); rebuildDashViews(); saveCurrentProject()
+        }
+        builder.show()
     }
 
     private fun assembleMainPy(): String {
@@ -994,6 +1160,14 @@ class MainActivity : AppCompatActivity() {
 
     private fun createSeedProject() = RoboProject(
         ProjectStore.newId(), "Mein Programm", Boards.ALL[0].id, null, seedSetup(), seedMain(), seedLib(),
+        seedDashboard(),
+    )
+
+    // Roadmap 1: Start-Tafel passend zu den Beispiel-Logzeilen in seedMain().
+    private fun seedDashboard() = mutableListOf(
+        Widget(newWidgetId(), WidgetType.GAU, "TEMP", 0.0, 50.0),
+        Widget(newWidgetId(), WidgetType.BAR, "DIST", 0.0, 100.0),
+        Widget(newWidgetId(), WidgetType.LED, "LED"),
     )
 
     /** Zuletzt genutztes Projekt laden — oder implizit ein Default anlegen. */
@@ -1013,6 +1187,8 @@ class MainActivity : AppCompatActivity() {
         syncingBoard = false
         lastBoardIdx = idx
         projectPins = p.pins
+        dashboard = p.dashboard
+        if (::dashBox.isInitialized) rebuildDashViews()
         tabs["setup"] = p.setup; tabs["main"] = p.main; tabs["lib"] = p.lib
         editorLoaded = false
         switchTab("main")
@@ -1032,6 +1208,7 @@ class MainActivity : AppCompatActivity() {
         return RoboProject(
             currentId, currentName, selectedBoard().id, projectPins,
             tabs["setup"] ?: "", tabs["main"] ?: "", tabs["lib"] ?: "",
+            dashboard,
         )
     }
 
@@ -1059,6 +1236,7 @@ class MainActivity : AppCompatActivity() {
         val copy = cur.copy(
             id = ProjectStore.newId(), name = uniqueName("${cur.name} Kopie"),
             pins = cur.pins?.map { it.copy() }?.toMutableList(),
+            dashboard = cur.dashboard.map { it.copy() }.toMutableList(),
         )
         ProjectStore.save(this, copy); applyProject(copy)
     }
@@ -1153,13 +1331,16 @@ class MainActivity : AppCompatActivity() {
     ).joinToString("\n")
 
     private fun seedMain() = listOf(
-        "# Blinken + seriell senden (erscheint im Terminal)",
+        "# Blinken + Werte an die Tafel senden (Term -> „Tafel“)",
         "n = 0",
         "while True:",
         "    b.do3 = 1",
-        "    log(\"blink\", n)",
+        "    log(\"LED:1\")",
+        "    log(\"TEMP:\" + str(20 + n % 15))",
+        "    log(\"DIST:\" + str(n % 100))",
         "    wait(500)",
         "    b.do3 = 0",
+        "    log(\"LED:0\")",
         "    wait(500)",
         "    n = n + 1",
     ).joinToString("\n")

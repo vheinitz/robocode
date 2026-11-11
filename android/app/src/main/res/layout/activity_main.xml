@@ -275,8 +275,13 @@
 
         <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
             android:orientation="horizontal" android:gravity="center_vertical">
-            <TextView android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"
-                android:text="Terminal — serielle Ein-/Ausgabe" android:textSize="11sp" android:textColor="#8a93a2" />
+            <TextView android:id="@+id/terminalTitle" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"
+                android:text="Terminal" android:textSize="11sp" android:textColor="#8a93a2" />
+            <Button android:id="@+id/btnDashAdd" style="?android:attr/buttonStyleSmall"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="+ Widget" android:visibility="gone" />
+            <Button android:id="@+id/btnDashToggle" style="?android:attr/buttonStyleSmall"
+                android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Tafel" />
             <Button android:id="@+id/btnTerminalStop" style="?android:attr/buttonStyleSmall"
                 android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Stop" />
             <Button android:id="@+id/btnTerminalClear" style="?android:attr/buttonStyleSmall"
@@ -293,8 +298,17 @@
                 android:textColor="#9be7a0" android:textIsSelectable="true" />
         </ScrollView>
 
+        <!-- TAFEL: grafische Widgets (Roadmap 1), gespeist aus demselben LOG-Strom -->
+        <ScrollView android:id="@+id/dashScroll"
+            android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
+            android:background="#12151b" android:visibility="gone">
+            <LinearLayout android:id="@+id/dashBox"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="vertical" android:padding="4dp" />
+        </ScrollView>
+
         <!-- OUT: eine Zeile zum Senden an den ESP32 -->
-        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        <LinearLayout android:id="@+id/terminalOutRow" android:layout_width="match_parent" android:layout_height="wrap_content"
             android:orientation="horizontal" android:gravity="center_vertical" android:paddingTop="4dp">
             <EditText android:id="@+id/terminalOut"
                 android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"
