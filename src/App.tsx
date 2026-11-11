@@ -103,7 +103,12 @@ const PORT_HELP: { icon: string; title: string; help: string }[] = [
   { icon: 'a', title: 'b.aN', help: 'Analog lesen (0..255): t = b.a1' },
 ]
 
-const ALL_ROLES: PinRole[] = ['A', 'DI', 'DO', 'SDA', 'SCL', 'SPI', 'INT', 'none']
+// Nur diese Rollen sind pro Pin frei wählbar. I²C/SPI/INT sind hardware-
+// gebunden (z. B. OLED an festen GPIOs) — die zeigt die Board-Ansicht als
+// feste, nicht editierbare Pins. Später sagt die Board-Konfiguration je
+// Board, welche Pins wofür einstellbar sind.
+const EDITABLE_ROLES: PinRole[] = ['DO', 'DI', 'A', 'none']
+const RESERVED_ROLES: PinRole[] = ['SDA', 'SCL', 'SPI', 'INT']
 
 function ensurePlayground(p: Project): Project {
   const fresh = createPlaygroundProject()
@@ -272,9 +277,32 @@ export default function App() {
   // Als Render-Funktion (KEINE innere Komponente) — sonst remountet React die
   // Eingabe bei jedem Tastendruck und der Fokus geht verloren. `side` dreht die
   // Reihenfolge, damit das GPIO-Label jeweils zur Platine zeigt (wie im Pinout).
-  const renderPin = (p: PinDesc, side: 'l' | 'r') => (
-      <div key={p.gpio} className={`flex items-center gap-1 py-0.5 ${side === 'l' ? 'flex-row-reverse' : ''}`}>
-        <span className="w-9 shrink-0 text-right font-mono text-[10px] text-gray-400">G{p.gpio}</span>
+  // Reihe ohne eigenes py: der Abstand kommt aus justify-between der Spalte,
+  // damit die Reihen auf Höhe der realen Pins liegen.
+  const rowCls = (side: 'l' | 'r') => `flex items-center gap-1 ${side === 'l' ? 'flex-row-reverse' : ''}`
+  const gpioLabel = (gpio: number) => (
+    <span className="w-9 shrink-0 text-right font-mono text-[10px] text-gray-400">G{gpio}</span>
+  )
+
+  const renderPin = (p: PinDesc, side: 'l' | 'r') => {
+    // Hardware-gebundener Pin (I²C/SPI/INT): fest, nicht editierbar.
+    if (RESERVED_ROLES.includes(p.role)) {
+      return (
+        <div key={p.gpio} className={rowCls(side)}>
+          {gpioLabel(p.gpio)}
+          <span
+            className="w-20 rounded border border-amber-300 bg-amber-50 px-1 py-0.5 text-center font-mono text-[11px] text-amber-700"
+            title={`${ROLE_LABEL[p.role]} — fest (${p.note ?? p.name})`}
+          >
+            {p.name}
+          </span>
+          <span className="w-12 shrink-0 text-center font-mono text-[10px] text-amber-600">{p.role}</span>
+        </div>
+      )
+    }
+    return (
+      <div key={p.gpio} className={rowCls(side)}>
+        {gpioLabel(p.gpio)}
         <input
           value={p.name}
           disabled={!cloned}
@@ -287,17 +315,18 @@ export default function App() {
           value={p.role}
           disabled={!cloned}
           onChange={(e) => updatePin(p.gpio, { role: e.target.value as PinRole })}
-          className={`rounded border px-0.5 py-0.5 text-[11px] ${
+          className={`w-12 rounded border px-0.5 py-0.5 text-[11px] ${
             cloned ? 'border-gray-300 bg-white text-gray-700' : 'border-transparent bg-gray-50 text-gray-500'
           }`}
           title={p.adc ? 'ADC-fähig' : 'nur digital'}
         >
-          {ALL_ROLES.filter((r) => r !== 'A' || p.adc).map((r) => (
+          {EDITABLE_ROLES.filter((r) => r !== 'A' || p.adc).map((r) => (
             <option key={r} value={r}>{r === 'none' ? '—' : r}</option>
           ))}
         </select>
       </div>
-  )
+    )
+  }
 
   // Ein Platz in der Stiftleiste: GPIO-Zeile oder fester Versorgungspin.
   const renderSlot = (slot: Slot, side: 'l' | 'r') => {
@@ -305,7 +334,7 @@ export default function App() {
       const color =
         slot.power === 'GND' ? 'border-gray-700 bg-gray-700 text-white' : 'border-red-300 bg-red-100 text-red-700'
       return (
-        <div key={`${side}-pwr-${slot.power}`} className={`flex items-center gap-1 py-0.5 ${side === 'l' ? 'flex-row-reverse' : ''}`}>
+        <div key={`${side}-pwr-${slot.power}`} className={rowCls(side)}>
           <span className="w-9 shrink-0" />
           <span className={`w-20 rounded border px-1 py-0.5 text-center font-mono text-[11px] ${color}`}>{slot.power}</span>
           <span className="w-12 shrink-0" />
@@ -581,19 +610,20 @@ export default function App() {
             </span>
           </div>
 
-          {/* Board-Bild mittig, Pin-Controls links/rechts drumherum */}
-          <div className="flex items-start justify-center gap-2 p-3">
-            <div className="flex flex-col">{board.layout.left.map((s) => renderSlot(s, 'l'))}</div>
-            <div className="flex shrink-0 flex-col items-center">
-              {imgSrc ? (
-                <img src={imgSrc} alt={board.name} className="max-h-[60vh] w-auto max-w-[220px] rounded border border-gray-200" />
-              ) : (
-                <div className="flex h-40 w-32 items-center justify-center rounded border border-dashed border-gray-300 text-gray-400"><Icon name="chip" size={40} /></div>
-              )}
-              <span className="mt-1 text-center text-[11px] font-medium text-gray-600">{board.name}</span>
-            </div>
-            <div className="flex flex-col">{board.layout.right.map((s) => renderSlot(s, 'r'))}</div>
+          {/* Board-Bild mittig, Pin-Controls links/rechts drumherum.
+              items-stretch → die Spalten bekommen die Bildhöhe; justify-between
+              verteilt die Pin-Reihen über die Platine, sodass sie auf Höhe der
+              realen Stiftleisten liegen. py-[6%] = schmaler USB-C-Rand oben. */}
+          <div className="flex items-stretch justify-center gap-2 p-3">
+            <div className="flex flex-col justify-between py-[6%]">{board.layout.left.map((s) => renderSlot(s, 'l'))}</div>
+            {imgSrc ? (
+              <img src={imgSrc} alt={board.name} className="max-h-[60vh] w-auto max-w-[200px] shrink-0 self-center rounded border border-gray-200" />
+            ) : (
+              <div className="flex h-40 w-32 shrink-0 items-center justify-center self-center rounded border border-dashed border-gray-300 text-gray-400"><Icon name="chip" size={40} /></div>
+            )}
+            <div className="flex flex-col justify-between py-[6%]">{board.layout.right.map((s) => renderSlot(s, 'r'))}</div>
           </div>
+          <div className="-mt-1 text-center text-[11px] font-medium text-gray-600">{board.name}</div>
 
           <div className="px-3 pb-4 text-[11px] text-gray-500">
             Default-Namen: <span className="font-mono">A0..</span> (Analog), <span className="font-mono">DI0..</span> (Digital-Eingang),
