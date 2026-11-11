@@ -101,6 +101,13 @@
                     android:layout_width="wrap_content" android:layout_height="wrap_content"
                     android:orientation="horizontal" />
             </HorizontalScrollView>
+            <!-- Fester Zuweisungs-Knopf rechts (immer sichtbar, nicht scrollbar). -->
+            <TextView android:id="@+id/btnAssign"
+                android:layout_width="34dp" android:layout_height="30dp"
+                android:text="=" android:textSize="15sp" android:gravity="center"
+                android:textColor="#374151" android:background="@drawable/bg_icon_button"
+                android:layout_marginStart="4dp"
+                android:fontFamily="monospace" android:clickable="true" android:focusable="true" />
         </LinearLayout>
         <!-- Palette: aufgeklappte Unter-Zeile (Inhalt der gewählten Gruppe) -->
         <HorizontalScrollView android:layout_width="match_parent" android:layout_height="wrap_content"
@@ -128,43 +135,30 @@
         android:orientation="vertical"
         android:visibility="gone">
 
-        <!-- Kopfzeile: Board-Auswahl + Klonen/Standard -->
+        <!-- Kopfzeile: Board-Auswahl + Klonen/Standard (flach, minimaler Rand) -->
         <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
             android:orientation="horizontal" android:gravity="center_vertical"
-            android:background="#f3f4f6" android:padding="8dp">
+            android:background="#f3f4f6"
+            android:paddingStart="6dp" android:paddingEnd="6dp" android:paddingTop="1dp" android:paddingBottom="1dp">
             <Spinner android:id="@+id/spinnerBoardCfg"
-                android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" />
+                android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"
+                android:minHeight="0dp" android:paddingTop="0dp" android:paddingBottom="0dp" />
             <Button android:id="@+id/btnBoardClone" style="?android:attr/buttonStyleSmall"
                 android:layout_width="wrap_content" android:layout_height="wrap_content"
-                android:text="Fürs Projekt klonen" android:textSize="11sp" />
+                android:minHeight="0dp" android:minWidth="0dp"
+                android:text="Klonen" android:textSize="11sp" />
         </LinearLayout>
-        <TextView android:id="@+id/txtBoardHint"
-            android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:textSize="11sp" android:textColor="#6b7280"
-            android:paddingStart="10dp" android:paddingEnd="10dp" android:paddingTop="4dp" android:paddingBottom="4dp"
-            android:text="Standard-Belegung. Zum Umbenennen klonen." />
 
         <ScrollView android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
             android:background="#ffffff">
-            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:orientation="vertical" android:padding="8dp">
-                <!-- Wird in Code gefüllt: linke Pins | Board-Bild | rechte Pins.
-                     Horizontal scrollbar, da 3 Spalten + Bild breiter als der Schirm. -->
-                <HorizontalScrollView android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:scrollbars="none">
-                    <LinearLayout android:id="@+id/boardRow"
-                        android:layout_width="wrap_content" android:layout_height="wrap_content"
-                        android:orientation="horizontal" android:gravity="center_vertical" />
-                </HorizontalScrollView>
-                <TextView android:id="@+id/txtBoardName"
-                    android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:gravity="center" android:textSize="11sp" android:textStyle="bold"
-                    android:textColor="#4b5563" android:paddingTop="4dp" />
-                <TextView
-                    android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:textSize="11sp" android:textColor="#6b7280" android:paddingTop="10dp"
-                    android:text="Default-Namen: A0.. (Analog), DI0.. (Digital-Eingang), DO0.. (Digital-Ausgang). Eigene Namen stehen danach im Code als Symbole bereit (Palette unter „Board“). I²C/SPI-Pins sind hardwaregebunden und fest." />
-            </LinearLayout>
+            <!-- Wird in Code gefüllt: linke Pins | Board-Bild | rechte Pins.
+                 Horizontal scrollbar, da 3 Spalten + Bild breiter als der Schirm. -->
+            <HorizontalScrollView android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:scrollbars="none" android:padding="4dp">
+                <LinearLayout android:id="@+id/boardRow"
+                    android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:orientation="horizontal" android:gravity="center_vertical" />
+            </HorizontalScrollView>
         </ScrollView>
     </LinearLayout>
 

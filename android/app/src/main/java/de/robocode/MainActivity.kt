@@ -57,8 +57,6 @@ class MainActivity : AppCompatActivity() {
     // Board-Ansicht (0.2)
     private lateinit var spinnerBoardCfg: Spinner
     private lateinit var boardRow: LinearLayout
-    private lateinit var txtBoardHint: TextView
-    private lateinit var txtBoardName: TextView
     private lateinit var btnBoardClone: Button
     // Eigene Pin-Belegung (Board fürs Projekt geklont); null = Board-Standard.
     // Hinweis: noch nicht persistiert (Projektverwaltung 0.1 steht aus).
@@ -94,6 +92,9 @@ class MainActivity : AppCompatActivity() {
     // Wenn per Intent-Extra ein Panel vorgegeben ist (z. B. für Screenshots),
     // soll Auto-Connect das Panel nicht umschalten.
     private var pinnedPanel: String? = null
+    // Nicht abbrechbarer Dialog während des Flashens (blockiert alle Bedienung).
+    private var flashDialog: AlertDialog? = null
+    private var flashProgressView: TextView? = null
     private val actionUsbPermission get() = "$packageName.USB_PERMISSION"
 
     private val usbReceiver = object : BroadcastReceiver() {
@@ -125,8 +126,6 @@ class MainActivity : AppCompatActivity() {
         spinnerBoard = findViewById(R.id.spinnerBoard)
         spinnerBoardCfg = findViewById(R.id.spinnerBoardCfg)
         boardRow = findViewById(R.id.boardRow)
-        txtBoardHint = findViewById(R.id.txtBoardHint)
-        txtBoardName = findViewById(R.id.txtBoardName)
         btnBoardClone = findViewById(R.id.btnBoardClone)
         txtStatus = findViewById(R.id.txtStatus)
         txtDeviceInfo = findViewById(R.id.txtDeviceInfo)
@@ -172,6 +171,8 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.navBoard).setOnClickListener { buildBoardPanel(); showPanel(panelBoard) }
         findViewById<Button>(R.id.navDevice).setOnClickListener { showPanel(panelDevice) }
         btnBoardClone.setOnClickListener { if (projectPins == null) clonePins() else resetPins() }
+        // Zuweisungs-Operator: fester Knopf rechts in der Leiste (nicht verschwindbar).
+        findViewById<TextView>(R.id.btnAssign).setOnClickListener { insertAtCursor(" = ") }
         findViewById<Button>(R.id.navMain).setOnClickListener { refreshMainPy(); showPanel(panelMain) }
         findViewById<Button>(R.id.navTerminal).setOnClickListener { showPanel(panelTerminal) }
         findViewById<Button>(R.id.navLog).setOnClickListener { showPanel(panelLog) }
@@ -484,10 +485,7 @@ class MainActivity : AppCompatActivity() {
             syncingBoard = true; spinnerBoardCfg.setSelection(idx); syncingBoard = false
         }
         val board = selectedBoard()
-        txtBoardName.text = board.name
-        btnBoardClone.text = if (clonedPins) "Standard wiederherstellen" else "Fürs Projekt klonen"
-        txtBoardHint.text = if (clonedPins) "Eigene Belegung — Namen & Bedeutung editierbar."
-            else "Standard-Belegung. Zum Umbenennen klonen."
+        btnBoardClone.text = if (clonedPins) "Standard" else "Klonen"
 
         boardRow.removeAllViews()
         val byGpio = effectivePins().associateBy { it.gpio }
@@ -502,7 +500,7 @@ class MainActivity : AppCompatActivity() {
             adjustViewBounds = true
             maxHeight = colH
             scaleType = ImageView.ScaleType.FIT_CENTER
-            layoutParams = LinearLayout.LayoutParams(dp(150), colH).apply { marginStart = dp(4); marginEnd = dp(4) }
+            layoutParams = LinearLayout.LayoutParams(dp(140), colH).apply { marginStart = dp(1); marginEnd = dp(1) }
         }
         val bmp = board.image?.let { path ->
             try { assets.open(path).use { BitmapFactory.decodeStream(it) } } catch (_: Exception) { null }
@@ -532,7 +530,7 @@ class MainActivity : AppCompatActivity() {
         if (slot.power != null) {
             children.add(gpioLabelView(null))
             children.add(powerChip(slot.power))
-            children.add(spacerView(dp(44)))
+            children.add(spacerView(dp(46)))
         } else {
             val p = byGpio[slot.gpio] ?: return row
             children.add(gpioLabelView(p.gpio))
@@ -556,8 +554,8 @@ class MainActivity : AppCompatActivity() {
         textSize = 10f; setTextColor(0xFF9CA3AF.toInt())
         typeface = android.graphics.Typeface.MONOSPACE
         gravity = android.view.Gravity.END
-        setPadding(0, 0, dp(3), 0)
-        layoutParams = LinearLayout.LayoutParams(dp(30), LinearLayout.LayoutParams.WRAP_CONTENT)
+        setPadding(0, 0, dp(2), 0)
+        layoutParams = LinearLayout.LayoutParams(dp(26), LinearLayout.LayoutParams.WRAP_CONTENT)
     }
 
     private fun powerChip(power: String): TextView = TextView(this).apply {
@@ -567,7 +565,7 @@ class MainActivity : AppCompatActivity() {
         val dark = power == "GND"
         setTextColor(if (dark) 0xFFFFFFFF.toInt() else 0xFFB91C1C.toInt())
         background = chipBg(if (dark) 0xFF374151.toInt() else 0xFFFEE2E2.toInt(), if (dark) 0xFF374151.toInt() else 0xFFFCA5A5.toInt())
-        layoutParams = LinearLayout.LayoutParams(dp(70), dp(26))
+        layoutParams = LinearLayout.LayoutParams(dp(42), dp(26))
     }
 
     private fun reservedChip(p: PinDesc): TextView = TextView(this).apply {
@@ -576,14 +574,14 @@ class MainActivity : AppCompatActivity() {
         gravity = android.view.Gravity.CENTER
         setTextColor(0xFFB45309.toInt())
         background = chipBg(0xFFFFFBEB.toInt(), 0xFFFCD34D.toInt())
-        layoutParams = LinearLayout.LayoutParams(dp(70), dp(26))
+        layoutParams = LinearLayout.LayoutParams(dp(42), dp(26))
     }
 
     private fun roleBadge(role: PinRole): TextView = TextView(this).apply {
         text = role.code; textSize = 10f; setTextColor(0xFFB45309.toInt())
         typeface = android.graphics.Typeface.MONOSPACE
         gravity = android.view.Gravity.CENTER
-        layoutParams = LinearLayout.LayoutParams(dp(44), LinearLayout.LayoutParams.WRAP_CONTENT)
+        layoutParams = LinearLayout.LayoutParams(dp(34), LinearLayout.LayoutParams.WRAP_CONTENT)
     }
 
     private fun nameField(p: PinDesc): EditText = EditText(this).apply {
@@ -592,9 +590,9 @@ class MainActivity : AppCompatActivity() {
         isEnabled = clonedPins
         setSingleLine(true)
         minHeight = 0; minimumHeight = dp(26)
-        setPadding(dp(4), dp(2), dp(4), dp(2))
+        setPadding(dp(3), dp(2), dp(3), dp(2))
         inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
-        layoutParams = LinearLayout.LayoutParams(dp(78), LinearLayout.LayoutParams.WRAP_CONTENT).apply { marginEnd = dp(2) }
+        layoutParams = LinearLayout.LayoutParams(dp(42), LinearLayout.LayoutParams.WRAP_CONTENT).apply { marginEnd = dp(1) }
         fun refreshBorder() = run {
             background = chipBg(if (clonedPins) 0xFFFFFFFF.toInt() else 0xFFF9FAFB.toInt(),
                 if (Boards.isValidName(text.toString())) 0xFFD1D5DB.toInt() else 0xFFF87171.toInt())
@@ -613,7 +611,9 @@ class MainActivity : AppCompatActivity() {
             adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, roles.map { it.code })
             setSelection(roles.indexOf(p.role).coerceAtLeast(0))
             isEnabled = clonedPins
-            layoutParams = LinearLayout.LayoutParams(dp(60), LinearLayout.LayoutParams.WRAP_CONTENT)
+            minimumWidth = 0
+            setPadding(0, 0, 0, 0)
+            layoutParams = LinearLayout.LayoutParams(dp(46), LinearLayout.LayoutParams.WRAP_CONTENT)
             onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
                 override fun onItemSelected(parent: AdapterView<*>?, v: View?, pos: Int, id: Long) { p.role = roles[pos] }
                 override fun onNothingSelected(parent: AdapterView<*>?) {}
@@ -688,13 +688,16 @@ class MainActivity : AppCompatActivity() {
     private fun doFlash(driver: UsbSerialDriver) {
         val listener = object : EspLoader.Listener {
             override fun log(msg: String) = this@MainActivity.log(msg)
-            override fun progress(doneBytes: Int, totalBytes: Int) =
-                this@MainActivity.log("… %d / %d Byte".format(doneBytes, totalBytes))
+            override fun progress(doneBytes: Int, totalBytes: Int) {
+                // Kein Byte-Spam ins Log — nur den Prozent-Stand im Warn-Dialog.
+                val pct = if (totalBytes > 0) doneBytes * 100 / totalBytes else 0
+                runOnUiThread { flashProgressView?.text = "läuft… $pct %" }
+            }
         }
         // Flashen: Steuerleitungen anlegen (Board im Download-Modus).
         if (!usb.open(driver, 115200, assertControlLines = true)) { log("Port öffnen fehlgeschlagen."); return }
         try {
-            runOnUiThread { setStatus("● flashe…", GRAY) }
+            runOnUiThread { setStatus("● flashe…", GRAY); showFlashDialog() }
             log("Synchronisiere mit ROM-Bootloader…")
             val loader = EspLoader(usb)
             if (!loader.connect(listener)) { log("Keine Antwort. Board im Download-Modus?"); return }
@@ -714,10 +717,38 @@ class MainActivity : AppCompatActivity() {
             log("Fehler: ${e.message}")
         } finally {
             usb.close()
+            runOnUiThread { dismissFlashDialog() }
         }
         // Nach dem Reboot neu erkennen (Gerät re-enumeriert; kurz warten).
         try { Thread.sleep(1500) } catch (_: InterruptedException) {}
         autoConnect()
+    }
+
+    /** Nicht abbrechbarer Hinweis während des Flashens: alle anderen Bedienelemente
+     *  sind dadurch gesperrt; deutliche Warnung, nicht zu unterbrechen. */
+    private fun showFlashDialog() {
+        if (flashDialog?.isShowing == true) return
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(22), dp(18), dp(22), dp(10))
+        }
+        box.addView(TextView(this).apply {
+            text = "⚠ MicroPython wird installiert.\n\nBitte NICHT abbrechen, das Gerät nicht trennen und die App nicht schließen, bis es fertig ist."
+            textSize = 14f; setTextColor(ORANGE)
+        })
+        val prog = TextView(this).apply {
+            text = "läuft…"; textSize = 12f; setTextColor(ICON); setPadding(0, dp(14), 0, 0)
+        }
+        box.addView(prog)
+        flashProgressView = prog
+        flashDialog = AlertDialog.Builder(this)
+            .setTitle("Installation läuft").setView(box).setCancelable(false).create()
+        flashDialog?.setCanceledOnTouchOutside(false)
+        flashDialog?.show()
+    }
+
+    private fun dismissFlashDialog() {
+        flashDialog?.dismiss(); flashDialog = null; flashProgressView = null
     }
 
     // ---------------- Start: zusammenbauen, übertragen, ausführen ----------------
