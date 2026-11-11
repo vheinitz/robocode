@@ -1,23 +1,27 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Project,
   Block,
   BlockKind,
+  ProjectInfo,
+  newId,
   createPlaygroundProject,
-  saveProject,
-  loadProject,
+  loadOrCreateCurrent,
+  saveProjectRecord,
+  setCurrentProjectId,
+  listProjects,
+  loadProjectById,
+  deleteProjectRecord,
   exportProjectJson,
 } from './model/project'
 import { assembleSketch } from './hw/assemble'
-import { BOARDS, getBoard } from './hw/boards'
+import { BOARDS, getBoard, defaultPins, isValidName, ROLE_LABEL, PinDesc, PinRole } from './hw/boards'
 import BlockEditor, { BlockEditorHandle } from './editor/BlockEditor'
 import { Icon } from './editor/icons'
 
 // Feste Code-Container; sichtbar ist (wie in der Android-App) nur MAIN.
-// SETUP/LIB bleiben als Seed erhalten und werden mitassembliert.
 const TAB_ORDER: BlockKind[] = ['setup', 'main', 'lib']
 
-// Icon-Tokens für MAIN/LIB (keine Emojis, keine Wörter — Bedeutung in der Hilfe).
 interface IconTok {
   icon: string
   insert: string
@@ -45,7 +49,7 @@ function toolTokens(kind: BlockKind): IconTok[] {
 // Zeiten + Schieberegler; die übrigen Gruppen haben feste Einträge (LEAVES).
 type Grp = 'board' | 'kontrolle' | 'operator' | 'warte' | 'seriell' | 'mehr'
 const GROUPS: { key: Grp; icon: string; title: string }[] = [
-  { key: 'board', icon: 'chip', title: 'Board – Ausgänge/Eingänge (do/di/a)' },
+  { key: 'board', icon: 'chip', title: 'Board – Ausgänge/Eingänge (do/di/a) + eigene Pins' },
   { key: 'kontrolle', icon: 'while', title: 'Kontrolle – Schleifen & Verzweigungen' },
   { key: 'operator', icon: 'gt', title: 'Operatoren – vergleichen & rechnen' },
   { key: 'warte', icon: 'wait', title: 'Warten – feste Zeit oder Schieberegler' },
@@ -92,13 +96,14 @@ const LEAVES: Record<Exclude<Grp, 'board' | 'warte'>, Leaf[]> = {
 }
 const WAIT_PRESETS = [100, 250, 500, 1000, 2000]
 
-// Legende für die Hilfe: Icon → Bedeutung (Werkzeuge + Ports + Board).
 const PORT_HELP: { icon: string; title: string; help: string }[] = [
   { icon: 'chip', title: 'Board b', help: 'Das Board ist schon da. Tippe es an, dann do/di/a wählen.' },
   { icon: 'do', title: 'b.doN = 1', help: 'Ausgang setzen. 0/1 = aus/an, jede andere Zahl = PWM 0..255.' },
   { icon: 'di', title: 'b.diN', help: 'Digital-Eingang lesen (z. B. Taster): if b.di0:' },
   { icon: 'a', title: 'b.aN', help: 'Analog lesen (0..255): t = b.a1' },
 ]
+
+const ALL_ROLES: PinRole[] = ['A', 'DI', 'DO', 'SDA', 'SCL', 'SPI', 'INT', 'none']
 
 function ensurePlayground(p: Project): Project {
   const fresh = createPlaygroundProject()
@@ -118,16 +123,21 @@ function knownNamesOf(project: Project): string[] {
   return [...names]
 }
 
+function uniqueName(base: string): string {
+  const names = new Set(listProjects().map((p) => p.name))
+  if (!names.has(base)) return base
+  let i = 2
+  while (names.has(`${base} ${i}`)) i++
+  return `${base} ${i}`
+}
+
 export default function App() {
-  const [project, setProject] = useState<Project>(
-    () => ensurePlayground(loadProject() ?? createPlaygroundProject()),
-  )
+  const [project, setProject] = useState<Project>(() => ensurePlayground(loadOrCreateCurrent()))
+  const [projects, setProjects] = useState<ProjectInfo[]>(() => listProjects())
   const blocks = TAB_ORDER.map((k) => project.blocks.find((b) => b.kind === k)!).filter(Boolean)
-  // Nur MAIN sichtbar (wie Android). SETUP/LIB bleiben als Seed im Projekt.
   const activeKind: BlockKind = 'main'
-  const [view, setView] = useState<'code' | 'main'>('code')
-  const [boardId, setBoardId] = useState<string>(BOARDS[0].id)
-  // Aufklappbare Palette: aktive Gruppe, (bei Board) do/di/a-Ebene, Warte-Wert.
+  const [view, setView] = useState<'code' | 'board' | 'main'>('code')
+  const [menuOpen, setMenuOpen] = useState(false)
   const [grp, setGrp] = useState<null | Grp>(null)
   const [grpPort, setGrpPort] = useState<null | 'do' | 'di' | 'a'>(null)
   const [waitMs, setWaitMs] = useState(500)
@@ -135,13 +145,30 @@ export default function App() {
 
   const editorRef = useRef<BlockEditorHandle | null>(null)
 
+  const board = getBoard(project.boardId)
+  const banks = board.banks
+  const cloned = !!project.pins
+  const effectivePins: PinDesc[] = project.pins ?? defaultPins(board)
+
+  // Eigene (umbenannte) Pins mit nutzbarer Rolle → als Chips in der Palette.
+  const namedPins = effectivePins.filter(
+    (p) => isValidName(p.name) && p.role !== 'none' && !/^(A|DI|DO|GPIO)\d+$/.test(p.name),
+  )
+
   const activeBlock = blocks.find((b) => b.kind === activeKind) ?? blocks[0]
   const knownNames = useMemo(() => knownNamesOf(project), [project])
 
+  // Autosave: jede Änderung (Code, Board, Pins, Name) wird lokal gespeichert.
+  useEffect(() => {
+    saveProjectRecord(project)
+    setCurrentProjectId(project.id)
+    setProjects(listProjects())
+  }, [project])
+
   const assembled = useMemo(() => {
     const by = (k: BlockKind) => project.blocks.find((b) => b.kind === k)?.code ?? ''
-    return assembleSketch({ setup: by('setup'), lib: by('lib'), main: by('main') }, getBoard(boardId))
-  }, [project, boardId])
+    return assembleSketch({ setup: by('setup'), lib: by('lib'), main: by('main') }, board, project.pins)
+  }, [project, board])
 
   function updateBlock(id: string, patch: Partial<Block>) {
     setProject((p) => ({ ...p, blocks: p.blocks.map((b) => (b.id === id ? { ...b, ...patch } : b)) }))
@@ -152,9 +179,6 @@ export default function App() {
     if (insert.replace(/\s+$/, '').endsWith(':')) editorRef.current?.newline()
   }
 
-  // Board-Ports: Chip → do/di/a → Zahl. Schreiben klammerlos über die Property:
-  // b.doN = 1 (0/1 digital, sonst PWM); Lesen: b.aN / b.diN (Getter liefert Wert).
-  const banks = getBoard(boardId).banks
   function portSize(k: 'do' | 'di' | 'a'): number {
     return k === 'do' ? banks.do.length : k === 'di' ? banks.di.length : banks.a.length
   }
@@ -163,6 +187,60 @@ export default function App() {
     insertToken(insert)
     setGrpPort(null)
     setGrp(null)
+  }
+
+  // --- Projektverwaltung (0.1) ---
+  function switchProject(p: Project) {
+    setProject(ensurePlayground(p))
+    setGrp(null)
+    setGrpPort(null)
+    setMenuOpen(false)
+  }
+  function openProject(id: string) {
+    const p = loadProjectById(id)
+    if (p) switchProject(p)
+  }
+  function newProject() {
+    const p = createPlaygroundProject(uniqueName('Programm'), project.boardId)
+    saveProjectRecord(p)
+    switchProject(p)
+  }
+  function duplicateProject() {
+    const copy: Project = {
+      ...project,
+      id: newId('prj'),
+      name: uniqueName(`${project.name} Kopie`),
+      blocks: project.blocks.map((b) => ({ ...b, id: newId() })),
+    }
+    saveProjectRecord(copy)
+    switchProject(copy)
+  }
+  function removeProject(id: string) {
+    deleteProjectRecord(id)
+    const rest = listProjects()
+    setProjects(rest)
+    if (id === project.id) {
+      const next = rest.length ? loadProjectById(rest[0].id) : null
+      switchProject(next ?? createPlaygroundProject())
+    }
+  }
+
+  // --- Board/Pins (0.2) ---
+  function setBoard(id: string) {
+    // Board wechseln → eigene Pin-Belegung verwirft sich (gehörte zum alten Board).
+    setProject((p) => ({ ...p, boardId: id, pins: undefined }))
+  }
+  function clonePins() {
+    setProject((p) => ({ ...p, pins: defaultPins(getBoard(p.boardId)) }))
+  }
+  function resetPins() {
+    setProject((p) => ({ ...p, pins: undefined }))
+  }
+  function updatePin(gpio: number, patch: Partial<PinDesc>) {
+    setProject((p) => {
+      const base = p.pins ?? defaultPins(getBoard(p.boardId))
+      return { ...p, pins: base.map((pin) => (pin.gpio === gpio ? { ...pin, ...patch } : pin)) }
+    })
   }
 
   function handleExport() {
@@ -188,32 +266,98 @@ export default function App() {
   const iconBtn =
     'inline-flex items-center justify-center rounded-md border border-gray-300 bg-white px-2 py-1 text-xs text-gray-600 hover:text-gray-900 hover:border-teal-400'
 
+  const half = Math.ceil(effectivePins.length / 2)
+  const leftPins = effectivePins.slice(0, half)
+  const rightPins = effectivePins.slice(half)
+  const imgSrc = board.image ? `${import.meta.env.BASE_URL}${board.image}` : ''
+
+  // Als Render-Funktion (KEINE innere Komponente) — sonst remountet React die
+  // Eingabe bei jedem Tastendruck und der Fokus geht verloren.
+  const renderPin = (p: PinDesc) => (
+      <div key={p.gpio} className="flex items-center gap-1 py-0.5">
+        <span className="w-9 shrink-0 text-right font-mono text-[10px] text-gray-400">G{p.gpio}</span>
+        <input
+          value={p.name}
+          disabled={!cloned}
+          onChange={(e) => updatePin(p.gpio, { name: e.target.value })}
+          className={`w-20 rounded border px-1 py-0.5 font-mono text-[11px] ${
+            cloned ? 'border-gray-300 bg-white text-gray-800' : 'border-transparent bg-gray-50 text-gray-500'
+          } ${isValidName(p.name) ? '' : 'border-red-400 text-red-600'}`}
+        />
+        <select
+          value={p.role}
+          disabled={!cloned}
+          onChange={(e) => updatePin(p.gpio, { role: e.target.value as PinRole })}
+          className={`rounded border px-0.5 py-0.5 text-[11px] ${
+            cloned ? 'border-gray-300 bg-white text-gray-700' : 'border-transparent bg-gray-50 text-gray-500'
+          }`}
+          title={p.adc ? 'ADC-fähig' : 'nur digital'}
+        >
+          {ALL_ROLES.filter((r) => r !== 'A' || p.adc).map((r) => (
+            <option key={r} value={r}>{r === 'none' ? '—' : r}</option>
+          ))}
+        </select>
+      </div>
+  )
+
   return (
     <div className="relative flex h-full flex-col bg-gray-100">
-      {/* Kompakte Titelzeile (wie Android, ohne Verbindungsstatus) */}
-      <div className="flex shrink-0 items-center gap-2 border-b border-gray-200 bg-white px-3 py-1.5">
+      {/* Kompakte Titelzeile mit Projekt-Menü */}
+      <div className="relative flex shrink-0 items-center gap-2 border-b border-gray-200 bg-white px-3 py-1.5">
         <span className="text-[15px] font-bold tracking-wide text-gray-900">RoboCode</span>
-        <span className="hidden text-[11px] text-gray-400 sm:inline">Playground</span>
+        <button
+          onClick={() => setMenuOpen((o) => !o)}
+          title="Projekte"
+          className="flex items-center gap-1 rounded border border-gray-300 bg-gray-50 px-2 py-0.5 text-xs text-gray-700 hover:border-teal-400"
+        >
+          <Icon name="open" size={13} />
+          <span className="max-w-[9rem] truncate">{project.name}</span>
+          <span className="text-gray-400">▾</span>
+        </button>
         <div className="ml-auto flex items-center gap-1.5">
-          <select
-            value={boardId}
-            onChange={(e) => setBoardId(e.target.value)}
-            title="Board — bestimmt die vordefinierten Pins D.. / A.."
-            className="rounded border border-gray-300 bg-white px-1.5 py-0.5 text-xs text-gray-800"
-          >
-            {BOARDS.map((b) => (
-              <option key={b.id} value={b.id}>{b.name}</option>
-            ))}
-          </select>
-          <button title="Speichern" onClick={() => saveProject(project)} className={iconBtn}><Icon name="save" size={16} /></button>
-          <button title="Laden" onClick={() => { const p = loadProject(); if (p) setProject(ensurePlayground(p)) }} className={iconBtn}><Icon name="open" size={16} /></button>
           <button title="Export (JSON)" onClick={handleExport} className={iconBtn}><Icon name="download" size={16} /></button>
         </div>
+
+        {/* Projekt-Dropdown */}
+        {menuOpen && (
+          <>
+            <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
+            <div className="absolute left-24 top-full z-20 mt-1 w-72 rounded-lg border border-gray-200 bg-white p-2 shadow-xl">
+              <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">Aktuelles Projekt</div>
+              <input
+                value={project.name}
+                onChange={(e) => setProject((p) => ({ ...p, name: e.target.value }))}
+                className="mb-2 w-full rounded border border-gray-300 px-2 py-1 text-sm"
+              />
+              <div className="mb-2 flex gap-1">
+                <button onClick={newProject} className="flex-1 rounded border border-teal-300 bg-teal-50 px-2 py-1 text-xs text-teal-700 hover:bg-teal-100">+ Neu</button>
+                <button onClick={duplicateProject} className="flex-1 rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 hover:bg-gray-50">Duplizieren</button>
+              </div>
+              <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">Gespeicherte Projekte</div>
+              <div className="max-h-48 overflow-auto">
+                {projects.map((pi) => (
+                  <div key={pi.id} className={`flex items-center gap-1 rounded px-1 py-0.5 ${pi.id === project.id ? 'bg-teal-50' : 'hover:bg-gray-50'}`}>
+                    <button onClick={() => openProject(pi.id)} className="flex-1 truncate text-left text-xs text-gray-800">
+                      {pi.name}
+                    </button>
+                    <button
+                      onClick={() => removeProject(pi.id)}
+                      title="Löschen"
+                      className="shrink-0 rounded px-1 text-xs text-gray-400 hover:text-red-600"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
-      {/* Nav-Tabs: Code | main.py (dunkle Leiste wie Android) */}
+      {/* Nav-Tabs: Code | Board | main.py */}
       <div className="flex shrink-0 bg-[#1a1f27]">
-        {([['code', 'Code'], ['main', 'main.py']] as const).map(([v, label]) => (
+        {([['code', 'Code'], ['board', 'Board'], ['main', 'main.py']] as const).map(([v, label]) => (
           <button
             key={v}
             onClick={() => setView(v)}
@@ -227,7 +371,7 @@ export default function App() {
       {/* Panel: CODE */}
       {view === 'code' && (
         <div className="flex min-h-0 flex-1 flex-col">
-          {/* Palette – Gruppen (Klick klappt die passende Unterzeile auf) */}
+          {/* Palette – Gruppen */}
           <div className="flex shrink-0 items-center gap-1 border-b border-gray-200 bg-gray-100 px-1.5 py-1">
             <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto">
               {GROUPS.map((g) => {
@@ -246,7 +390,6 @@ export default function App() {
                 )
               })}
             </div>
-            {/* Feste Werkzeuge rechts: Rückgängig & Hilfe */}
             <button
               title="Rückgängig"
               onClick={() => editorRef.current?.undo()}
@@ -263,21 +406,35 @@ export default function App() {
             </button>
           </div>
 
-          {/* Palette – aufgeklappte Unterzeile zur gewählten Gruppe */}
+          {/* Palette – aufgeklappte Unterzeile */}
           {grp && (
             <div className="flex shrink-0 flex-wrap items-center gap-1 overflow-x-auto border-b border-gray-200 bg-white px-1.5 py-1">
-              {/* Board: do/di/a → Zahl */}
-              {grp === 'board' && !grpPort &&
-                (['do', 'di', 'a'] as const).map((k) => (
-                  <button
-                    key={k}
-                    title={k === 'do' ? 'Ausgang  b.doN = 1' : k === 'di' ? 'Eingang  b.diN' : 'Analog  b.aN'}
-                    onClick={() => setGrpPort(k)}
-                    className="inline-flex shrink-0 items-center justify-center rounded border border-gray-300 bg-white px-1.5 py-0.5 text-gray-700 hover:border-teal-400 hover:bg-teal-50 hover:text-teal-700"
-                  >
-                    <Icon name={k} />
-                  </button>
-                ))}
+              {grp === 'board' && !grpPort && (
+                <>
+                  {(['do', 'di', 'a'] as const).map((k) => (
+                    <button
+                      key={k}
+                      title={k === 'do' ? 'Ausgang  b.doN = 1' : k === 'di' ? 'Eingang  b.diN' : 'Analog  b.aN'}
+                      onClick={() => setGrpPort(k)}
+                      className="inline-flex shrink-0 items-center justify-center rounded border border-gray-300 bg-white px-1.5 py-0.5 text-gray-700 hover:border-teal-400 hover:bg-teal-50 hover:text-teal-700"
+                    >
+                      <Icon name={k} />
+                    </button>
+                  ))}
+                  {/* Eigene Pin-Namen (aus der Board-Ansicht) */}
+                  {namedPins.length > 0 && <span className="px-1 text-gray-300">|</span>}
+                  {namedPins.map((p) => (
+                    <button
+                      key={p.gpio}
+                      title={`${ROLE_LABEL[p.role]} (GPIO${p.gpio})`}
+                      onClick={() => insertToken(p.name)}
+                      className="shrink-0 rounded border border-indigo-200 bg-indigo-50 px-2 py-0.5 font-mono text-[12px] text-indigo-700 hover:bg-indigo-100"
+                    >
+                      {p.name}
+                    </button>
+                  ))}
+                </>
+              )}
               {grp === 'board' && grpPort && (
                 <>
                   <button
@@ -299,7 +456,6 @@ export default function App() {
                 </>
               )}
 
-              {/* Warte: feste Zeiten + Schieberegler */}
               {grp === 'warte' && (
                 <>
                   {WAIT_PRESETS.map((ms) => (
@@ -331,7 +487,6 @@ export default function App() {
                 </>
               )}
 
-              {/* Kontrolle / Operator / Seriell / Mehr: feste Einträge */}
               {grp !== 'board' && grp !== 'warte' &&
                 LEAVES[grp].map((lf, i) =>
                   lf.icon ? (
@@ -355,7 +510,6 @@ export default function App() {
                   ),
                 )}
 
-              {/* In „Mehr": vom Kind benannte Variablen als Text-Chips */}
               {grp === 'mehr' &&
                 knownNames.map((n) => (
                   <button
@@ -369,7 +523,7 @@ export default function App() {
             </div>
           )}
 
-          {/* Editor (dunkel, wie Android) */}
+          {/* Editor */}
           <div className="min-h-0 flex-1">
             {activeBlock && (
               <BlockEditor
@@ -384,12 +538,61 @@ export default function App() {
         </div>
       )}
 
+      {/* Panel: BOARD (0.2) */}
+      {view === 'board' && (
+        <div className="flex min-h-0 flex-1 flex-col overflow-auto bg-white">
+          <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-gray-200 bg-gray-50 px-3 py-2">
+            <select
+              value={project.boardId}
+              onChange={(e) => setBoard(e.target.value)}
+              className="rounded border border-gray-300 bg-white px-2 py-1 text-sm text-gray-800"
+            >
+              {BOARDS.map((b) => (
+                <option key={b.id} value={b.id}>{b.name}</option>
+              ))}
+            </select>
+            {!cloned ? (
+              <button onClick={clonePins} className="rounded border border-teal-300 bg-teal-50 px-2 py-1 text-xs text-teal-700 hover:bg-teal-100">
+                Fürs Projekt klonen &amp; Pins benennen
+              </button>
+            ) : (
+              <button onClick={resetPins} className="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 hover:bg-gray-50">
+                Standard wiederherstellen
+              </button>
+            )}
+            <span className="text-[11px] text-gray-500">
+              {cloned ? 'Eigene Belegung — Namen & Bedeutung editierbar.' : 'Standard-Belegung. Zum Umbenennen klonen.'}
+            </span>
+          </div>
+
+          {/* Board-Bild mittig, Pin-Controls links/rechts drumherum */}
+          <div className="flex items-start justify-center gap-2 p-3">
+            <div className="flex flex-col">{leftPins.map(renderPin)}</div>
+            <div className="flex shrink-0 flex-col items-center">
+              {imgSrc ? (
+                <img src={imgSrc} alt={board.name} className="max-h-[60vh] w-auto max-w-[220px] rounded border border-gray-200" />
+              ) : (
+                <div className="flex h-40 w-32 items-center justify-center rounded border border-dashed border-gray-300 text-gray-400"><Icon name="chip" size={40} /></div>
+              )}
+              <span className="mt-1 text-center text-[11px] font-medium text-gray-600">{board.name}</span>
+            </div>
+            <div className="flex flex-col">{rightPins.map(renderPin)}</div>
+          </div>
+
+          <div className="px-3 pb-4 text-[11px] text-gray-500">
+            Default-Namen: <span className="font-mono">A0..</span> (Analog), <span className="font-mono">DI0..</span> (Digital-Eingang),
+            <span className="font-mono"> DO0..</span> (Digital-Ausgang). Eigene Namen stehen danach im Code als Symbole bereit
+            (in der Palette unter „Board").
+          </div>
+        </div>
+      )}
+
       {/* Panel: main.py */}
       {view === 'main' && (
         <div className="flex min-h-0 flex-1 flex-col">
           <div className="flex shrink-0 items-center justify-between border-b border-gray-200 bg-gray-100 px-2 py-1.5">
             <span className="text-[11px] uppercase tracking-wide text-gray-500">
-              main.py — DSL (versteckt) + SETUP + LIB + MAIN
+              main.py — DSL (versteckt) + Pins + SETUP + LIB + MAIN
             </span>
             <div className="flex gap-1.5">
               <button onClick={() => navigator.clipboard?.writeText(assembled.mainPy)} className={iconBtn}>Kopieren</button>
@@ -402,7 +605,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Hilfe-Legende: Icon → Bedeutung */}
+      {/* Hilfe-Legende */}
       {showHelp && (
         <div
           className="absolute inset-0 z-20 flex items-end justify-center bg-black/40 p-3 sm:items-center"

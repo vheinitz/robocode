@@ -6,7 +6,7 @@
 // als Text einfügen. Genau diese Datei überträgt die Android-App per raw-REPL.
 
 import robopySource from '../../firmware/robopy.py?raw'
-import { Board, predefinedPinLines } from './boards'
+import { Board, PinDesc, predefinedPinLines, customPinLines } from './boards'
 
 export interface Parts {
   setup: string
@@ -23,7 +23,7 @@ function section(title: string, body: string, fallback: string): string {
   return `# ----- ${title} -----\n${b || fallback}`
 }
 
-export function assembleSketch(parts: Parts, board: Board): Assembled {
+export function assembleSketch(parts: Parts, board: Board, pins?: PinDesc[]): Assembled {
   const header = [
     '# ======================================================================',
     '# main.py — zusammengebaut vom robolang-Playground (EeZear-Stil, KEIN Transpiler)',
@@ -41,6 +41,7 @@ export function assembleSketch(parts: Parts, board: Board): Assembled {
     '',
     `# ----- Vordefinierte Pins für ${board.name} (versteckt) -----`,
     predefinedPinLines(board),
+    ...(pins && pins.length ? ['', customPinLines(pins)] : []),
     '',
     section('SETUP (Geräte an Pins)', parts.setup, '# (noch keine Geräte)'),
     '',
