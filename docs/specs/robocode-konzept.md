@@ -41,34 +41,46 @@ RoboCode-Programme sind gültiger, kompilierbarer Python-Code. Darum genügt
 
 ## 3. Programmieren mit KI
 
-Ein Knopf im Editor macht eine externe KI (ChatGPT, Claude o. a.) zum
-Programmierhelfer, ohne dass RoboCode eine KI-API einbinden muss.
+Ein neutraler Knopf (Sternchen-Icon) im Editor macht eine externe KI zum
+Programmierhelfer, ohne dass RoboCode eine KI-API einbinden muss. Der Ablauf ist
+bewusst dialogfrei und läuft in einer Runde.
 
 Ablauf:
 
-1. RoboCode sammelt automatisch den Kontext: Beschreibung der RoboCode-Syntax und
-   -API, die aktuelle Board-Konfiguration (welche Objekte die Bibliothek bei der
-   Initialisierung bereitstellt und an welchen Pins), optional das aktuelle
-   Programm (um ein bestehendes zu erweitern).
-2. RoboCode erzeugt eine **Anfrage-ID** und bittet die KI im Prompt, diese ID in
-   den Kopf des zurückgegebenen Codes zu schreiben (z. B. als Kommentar).
-3. Der Kontext wird per Android-`Intent.ACTION_SEND` (MIME `text/plain`,
-   `EXTRA_TEXT`) an eine installierte KI-App übergeben; der Nutzer wählt die App
-   und formuliert dort die Aufgabe. Zusätzlich landet der Prompt in der
-   **Zwischenablage** (Fallback, falls die App das Feld nicht automatisch füllt).
-4. Die KI-Antwort kommt über die Zwischenablage zurück. Beim Zurückwechseln
-   prüft RoboCode die Zwischenablage und ordnet die Antwort anhand der Anfrage-ID
-   der Anfrage zu, bevor der Code übernommen wird.
+1. Beim Tippen legt RoboCode den fertigen Kontext zuerst in die **Zwischenablage**
+   (Sicherheit, falls die Ziel-App das Textfeld nicht automatisch füllt) und
+   öffnet dann direkt die **Teilen-Auswahl** — ohne Zwischendialog.
+2. Die Auswahl ist auf **KI-Apps eingegrenzt**: RoboCode fragt über die
+   Paket-Sichtbarkeit (`<queries>` für `ACTION_SEND`/`text/plain`) die installierten
+   Apps ab und zeigt nur die aus einer gepflegten Liste bekannter KI-Apps (ChatGPT,
+   Claude, Gemini, Copilot, Perplexity, DeepSeek, Grok …). Ist genau eine
+   installiert, öffnet sie direkt; ist keine bekannt, bleibt die normale Auswahl.
+3. Der Kontext selbst **erklärt RoboCode** (siehe unten) und bittet die KI, das
+   Verständnis mit „ja" zu bestätigen. Die eigentliche **Aufgabe** gibt der Nutzer
+   erst danach in der KI-App ein — per Sprache oder Text. Die KI antwortet mit
+   einem kopierbaren Python-Codeblock, dessen **allererste Zeile die Anfrage-ID**
+   als Kommentar wiederholt (`# RC-ID: …`).
+4. Der Nutzer kopiert den Code und kehrt zu RoboCode zurück. Beim Zurückkehren
+   prüft RoboCode **ohne Dialog** die Zwischenablage: Enthält sie die Anfrage-ID,
+   ersetzt es sofort das Programm (MAIN) mit dem Code und **leert die
+   Zwischenablage**. Danach ist die Anfrage entschärft — die nächste Aufgabe
+   startet über einen erneuten Stern-Tipp (so wird nicht bei jeder Rückkehr zur
+   App die Zwischenablage gelesen).
 
-Weitere Punkte:
+Inhalt des Kontexts (Prompt):
 
-- Die KI nutzt die **bereits existierenden** Board-Objekte (z. B. `B.DO1` besteht
-  schon aus der Board-Initialisierung) und deklariert oder erfindet keine Pins.
-- Zweite Aktion „Kontext aktualisieren" (neu zusammenstellen, wenn sich das
-  Projekt geändert hat).
-- Der technische Prompt wird im Hintergrund gebildet, nicht jedes Mal angezeigt.
-- Knopf neutral halten (z. B. Sternchen-Icon), damit RoboCode nicht an einen
-  bestimmten KI-Anbieter gebunden ist.
+- RoboCode wird genau beschrieben: Es ist **gültiger Python-Code** (MicroPython),
+  nur mit einer **kurzen, handy-freundlichen Schreibweise** — keine eigene Sprache.
+- Die Bedienung der Hardware: `b.do0 = 1/0` (Digitalausgang), `b.di0`
+  (Digitaleingang), `b.a0` (Analogeingang), `wait(ms)`, `log("NAME:" + str(wert))`
+  für die Tafel. Dazu normales Python (Schleifen, Bedingungen, Funktionen).
+- Die **vorhandenen Board-Objekte des Projekts** (welche `b.do*/di*/a*` es gibt,
+  plus eigene Pin-Namen). Die KI soll **nur diese** nutzen und keine Pins anlegen.
+- Optional das **aktuelle Programm**, um ein bestehendes zu erweitern.
+- Die Anfrage-ID erzeugt RoboCode; die KI wiederholt sie nur als erste Code-Zeile.
+
+Die reine Logik (Prompt bauen, Antwort an der ID herausschneiden, App-Liste)
+liegt in `AiAssist.kt` und ist ohne Android testbar.
 
 ## 4. Interaktiver Kurs
 

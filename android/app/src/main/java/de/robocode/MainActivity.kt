@@ -219,8 +219,9 @@ class MainActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.btnProject).setOnClickListener { saveCurrentProject(); showProjectDialog() }
         // Wortmarke = Startseite (Project Launcher) erneut öffnen.
         findViewById<TextView>(R.id.brand).setOnClickListener { saveCurrentProject(); showLauncher() }
-        // Programmieren mit KI
-        findViewById<TextView>(R.id.btnAi).setOnClickListener { showAiDialog() }
+        // Programmieren mit KI: kein Dialog — Kontext in die Zwischenablage und
+        // direkt die (auf KI-Apps eingegrenzte) Teilen-Auswahl öffnen.
+        findViewById<TextView>(R.id.btnAi).setOnClickListener { aiShare() }
         findViewById<Button>(R.id.navMain).setOnClickListener { refreshMainPy(); showPanel(panelMain) }
         findViewById<Button>(R.id.navTerminal).setOnClickListener { showPanel(panelTerminal) }
         findViewById<Button>(R.id.navLog).setOnClickListener { showPanel(panelLog) }
@@ -1537,53 +1538,65 @@ class MainActivity : AppCompatActivity() {
         return tabs["main"]?.trim().orEmpty()
     }
 
-    /** Einstieg: an KI-App senden oder nur den Kontext in die Zwischenablage legen. */
-    private fun showAiDialog() {
+    /** Kontext in die Zwischenablage legen und die auf KI-Apps eingegrenzte
+     *  Teilen-Auswahl öffnen — ohne Zwischendialog. */
+    private fun aiShare() {
         saveCurrentProject()
-        AlertDialog.Builder(this)
-            .setTitle("Mit KI programmieren")
-            .setMessage(
-                "RoboCode schickt die Syntax, deine Board-Belegung und (optional) dein " +
-                    "aktuelles Programm an eine KI-App. Dort beschreibst du die Aufgabe. " +
-                    "Die Antwort kommt über die Zwischenablage zurück.",
-            )
-            .setPositiveButton("An KI-App senden") { _, _ -> aiSend() }
-            .setNeutralButton("Nur Kontext kopieren") { _, _ -> aiCopyContext() }
-            .setNegativeButton("Abbrechen", null)
-            .show()
-    }
-
-    private fun aiBuildAndRemember(): AiAssist.Request {
         val id = AiAssist.newRequestId()
         val prompt = AiAssist.buildPrompt(id, aiBoardContext(), aiCurrentProgram())
         aiRequestId = id
         aiSentPrompt = prompt
         aiLastHandledClip = null
-        copyToClipboard("RoboCode-KI", prompt)
-        return AiAssist.Request(id, prompt)
-    }
+        copyToClipboard("RoboCode-KI", prompt)   // Sicherheit: Kontext liegt schon in der Zwischenablage
 
-    private fun aiSend() {
-        val req = aiBuildAndRemember()
-        val send = Intent(Intent.ACTION_SEND).apply {
-            type = "text/plain"; putExtra(Intent.EXTRA_TEXT, req.prompt)
-        }
+        val base = Intent(Intent.ACTION_SEND).apply { type = "text/plain"; putExtra(Intent.EXTRA_TEXT, prompt) }
+        val aiTargets = aiAppIntents(prompt)
         try {
-            startActivity(Intent.createChooser(send, "KI-App wählen"))
-            toast("Kontext gesendet (${req.id}). Antwort kopieren und zurückkehren.")
+            when {
+                // Nur bekannte KI-Apps anbieten (eine gefundene → direkt öffnen).
+                aiTargets.size == 1 -> startActivity(aiTargets[0])
+                aiTargets.isNotEmpty() -> {
+                    val chooser = Intent.createChooser(aiTargets.first(), "KI-App wählen")
+                    chooser.putExtra(
+                        Intent.EXTRA_INITIAL_INTENTS,
+                        aiTargets.drop(1).toTypedArray(),
+                    )
+                    startActivity(chooser)
+                }
+                // Keine bekannte KI-App installiert → normale Auswahl (Kontext ist kopiert).
+                else -> startActivity(Intent.createChooser(base, "App wählen"))
+            }
+            toast("Kontext bereit ($id). Antwort kopieren und zurückkehren.")
         } catch (e: Exception) {
-            toast("Keine App gefunden — Kontext liegt in der Zwischenablage.")
+            toast("Keine App gefunden — Kontext liegt in der Zwischenablage ($id).")
         }
     }
 
-    private fun aiCopyContext() {
-        val req = aiBuildAndRemember()
-        toast("Kontext kopiert (${req.id}). In die KI-App einfügen, Antwort kopieren, zurückkehren.")
+    /** Explizite SEND-Intents für die installierten bekannten KI-Apps. */
+    private fun aiAppIntents(prompt: String): List<Intent> {
+        val pm = packageManager
+        val probe = Intent(Intent.ACTION_SEND).apply { type = "text/plain" }
+        val installed = pm.queryIntentActivities(probe, 0).map { it.activityInfo.packageName }.toSet()
+        return AiAssist.AI_PACKAGES.filter { it in installed }.map { pkg ->
+            Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"; setPackage(pkg); putExtra(Intent.EXTRA_TEXT, prompt)
+            }
+        }
     }
 
     private fun copyToClipboard(label: String, text: String) =
         (getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager)
             .setPrimaryClip(android.content.ClipData.newPlainText(label, text))
+
+    private fun clearClipboard() {
+        val cm = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+        try {
+            if (Build.VERSION.SDK_INT >= 28) cm.clearPrimaryClip()
+            else cm.setPrimaryClip(android.content.ClipData.newPlainText("", ""))
+        } catch (_: Exception) {
+            cm.setPrimaryClip(android.content.ClipData.newPlainText("", ""))
+        }
+    }
 
     private fun readClipboard(): String? {
         val cm = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
@@ -1592,40 +1605,19 @@ class MainActivity : AppCompatActivity() {
         return clip.getItemAt(0).coerceToText(this)?.toString()
     }
 
-    /** Beim Zurückkehren: enthält die Zwischenablage eine Antwort zur offenen Anfrage? */
+    /** Beim Zurückkehren: hat die Zwischenablage die Antwort zur offenen Anfrage?
+     *  Wenn ja, ohne Dialog das Programm ersetzen und die Zwischenablage leeren. */
     private fun aiCheckClipboard() {
         val id = aiRequestId ?: return
         val clip = readClipboard() ?: return
         if (clip == aiLastHandledClip) return
         val code = AiAssist.extractAnswer(clip, id, aiSentPrompt) ?: return
-        aiLastHandledClip = clip
-        aiShowAnswer(id, code)
-    }
-
-    private fun aiShowAnswer(id: String, code: String) {
-        val ctx = this
-        val preview = TextView(ctx).apply {
-            text = code; textSize = 12f; setTextColor(ICON)
-            typeface = android.graphics.Typeface.MONOSPACE
-            setPadding(dp(14), dp(10), dp(14), dp(10))
-        }
-        AlertDialog.Builder(ctx)
-            .setTitle("KI-Antwort erkannt ($id)")
-            .setView(ScrollView(ctx).apply { addView(preview) })
-            .setPositiveButton("In MAIN übernehmen") { _, _ -> aiApply("main", code) }
-            .setNeutralButton("Anderer Tab…") { _, _ -> aiChooseTarget(code) }
-            .setNegativeButton("Verwerfen") { _, _ -> aiClearRequest() }
-            .show()
-    }
-
-    private fun aiChooseTarget(code: String) {
-        val labels = arrayOf("MAIN", "SETUP", "LIB")
-        val keys = arrayOf("main", "setup", "lib")
-        AlertDialog.Builder(this)
-            .setTitle("Code einfügen in…")
-            .setItems(labels) { _, which -> aiApply(keys[which], code) }
-            .setNegativeButton("Abbrechen", null)
-            .show()
+        aiApply("main", code)
+        clearClipboard()
+        // Entschärfen: eine neue Aufgabe startet über einen erneuten Stern-Tipp.
+        // So liest die App nicht bei jeder Rückkehr die Zwischenablage.
+        aiRequestId = null; aiSentPrompt = null; aiLastHandledClip = null
+        toast("KI-Code übernommen ($id)")
     }
 
     private fun aiApply(tabKey: String, code: String) {
@@ -1634,12 +1626,6 @@ class MainActivity : AppCompatActivity() {
         switchTab(tabKey)
         showPanel(panelCode)
         saveCurrentProject()
-        aiClearRequest()
-        toast("Code übernommen in ${tabKey.uppercase()}")
-    }
-
-    private fun aiClearRequest() {
-        aiRequestId = null; aiSentPrompt = null; aiLastHandledClip = null
     }
 
     // ---------------- Seeds ----------------
