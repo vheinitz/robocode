@@ -119,6 +119,14 @@
                 android:textColor="#374151" android:background="@drawable/bg_icon_button"
                 android:layout_marginStart="4dp"
                 android:fontFamily="monospace" android:clickable="true" android:focusable="true" />
+            <!-- Programmieren mit KI: Kontext an eine KI-App geben (neutrales Symbol). -->
+            <TextView android:id="@+id/btnAi"
+                android:layout_width="34dp" android:layout_height="30dp"
+                android:text="✱" android:textSize="16sp" android:gravity="center"
+                android:textColor="#2ECC71" android:background="@drawable/bg_icon_button"
+                android:layout_marginStart="4dp"
+                android:contentDescription="Mit KI programmieren"
+                android:clickable="true" android:focusable="true" />
         </LinearLayout>
         <!-- Palette: aufgeklappte Unter-Zeile (Inhalt der gewählten Gruppe) -->
         <HorizontalScrollView android:layout_width="match_parent" android:layout_height="wrap_content"

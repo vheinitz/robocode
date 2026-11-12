@@ -106,6 +106,11 @@ class MainActivity : AppCompatActivity() {
     private var currentId = ""
     private var currentName = "Mein Programm"
     private var projectsInfo: List<ProjectStore.Info> = emptyList()
+    // Programmieren mit KI (P1): offene Anfrage + der genau so gesendete Prompt
+    // (um die eigene Zwischenablage nicht als „Antwort" zu missdeuten).
+    private var aiRequestId: String? = null
+    private var aiSentPrompt: String? = null
+    private var aiLastHandledClip: String? = null
     // Zuletzt angewandte Board-Position; verhindert, dass der anfängliche
     // Spinner-Callback eine gerade geladene Pin-Belegung verwirft.
     private var lastBoardIdx = -1
@@ -214,6 +219,8 @@ class MainActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.btnProject).setOnClickListener { saveCurrentProject(); showProjectDialog() }
         // Wortmarke = Startseite (Project Launcher) erneut öffnen.
         findViewById<TextView>(R.id.brand).setOnClickListener { saveCurrentProject(); showLauncher() }
+        // Programmieren mit KI
+        findViewById<TextView>(R.id.btnAi).setOnClickListener { showAiDialog() }
         findViewById<Button>(R.id.navMain).setOnClickListener { refreshMainPy(); showPanel(panelMain) }
         findViewById<Button>(R.id.navTerminal).setOnClickListener { showPanel(panelTerminal) }
         findViewById<Button>(R.id.navLog).setOnClickListener { showPanel(panelLog) }
@@ -1154,6 +1161,11 @@ class MainActivity : AppCompatActivity() {
         saveCurrentProject()   // Projekt (Code, Board, Pins, Name) sichern
     }
 
+    override fun onResume() {
+        super.onResume()
+        aiCheckClipboard()     // KI-Antwort aus der Zwischenablage erkennen
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         terminalRunning = false
@@ -1498,6 +1510,136 @@ class MainActivity : AppCompatActivity() {
     override fun onBackPressed() {
         // Aus dem Editor zurück → Startseite; von der Startseite → App verlassen.
         if (launcherView == null) showLauncher() else super.onBackPressed()
+    }
+
+    // ---------------- Programmieren mit KI (P1) ----------------
+
+    /** Vorhandene Board-Objekte des aktuellen Projekts als Text für den Kontext. */
+    private fun aiBoardContext(): String {
+        val bk = selectedBoard().banks
+        val sb = StringBuilder()
+        sb.append("- Board: ${selectedBoard().name}\n")
+        if (bk.doPins.isNotEmpty())
+            sb.append("- Digitalausgänge: ${bk.doPins.indices.joinToString(", ") { "b.do$it" }}\n")
+        if (bk.diPins.isNotEmpty())
+            sb.append("- Digitaleingänge: ${bk.diPins.indices.joinToString(", ") { "b.di$it" }}\n")
+        if (bk.aPins.isNotEmpty())
+            sb.append("- Analogeingänge: ${bk.aPins.indices.joinToString(", ") { "b.a$it" }}\n")
+        val named = namedPins()
+        if (named.isNotEmpty())
+            sb.append("- Eigene Namen: ${named.joinToString(", ") { "${it.name} (GPIO ${it.gpio})" }}\n")
+        return sb.toString().trimEnd()
+    }
+
+    /** Aktuelles Programm (MAIN) als optionaler Kontext zum Erweitern. */
+    private fun aiCurrentProgram(): String {
+        if (editorLoaded) tabs[active] = editor.text?.toString() ?: ""
+        return tabs["main"]?.trim().orEmpty()
+    }
+
+    /** Einstieg: an KI-App senden oder nur den Kontext in die Zwischenablage legen. */
+    private fun showAiDialog() {
+        saveCurrentProject()
+        AlertDialog.Builder(this)
+            .setTitle("Mit KI programmieren")
+            .setMessage(
+                "RoboCode schickt die Syntax, deine Board-Belegung und (optional) dein " +
+                    "aktuelles Programm an eine KI-App. Dort beschreibst du die Aufgabe. " +
+                    "Die Antwort kommt über die Zwischenablage zurück.",
+            )
+            .setPositiveButton("An KI-App senden") { _, _ -> aiSend() }
+            .setNeutralButton("Nur Kontext kopieren") { _, _ -> aiCopyContext() }
+            .setNegativeButton("Abbrechen", null)
+            .show()
+    }
+
+    private fun aiBuildAndRemember(): AiAssist.Request {
+        val id = AiAssist.newRequestId()
+        val prompt = AiAssist.buildPrompt(id, aiBoardContext(), aiCurrentProgram())
+        aiRequestId = id
+        aiSentPrompt = prompt
+        aiLastHandledClip = null
+        copyToClipboard("RoboCode-KI", prompt)
+        return AiAssist.Request(id, prompt)
+    }
+
+    private fun aiSend() {
+        val req = aiBuildAndRemember()
+        val send = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"; putExtra(Intent.EXTRA_TEXT, req.prompt)
+        }
+        try {
+            startActivity(Intent.createChooser(send, "KI-App wählen"))
+            toast("Kontext gesendet (${req.id}). Antwort kopieren und zurückkehren.")
+        } catch (e: Exception) {
+            toast("Keine App gefunden — Kontext liegt in der Zwischenablage.")
+        }
+    }
+
+    private fun aiCopyContext() {
+        val req = aiBuildAndRemember()
+        toast("Kontext kopiert (${req.id}). In die KI-App einfügen, Antwort kopieren, zurückkehren.")
+    }
+
+    private fun copyToClipboard(label: String, text: String) =
+        (getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager)
+            .setPrimaryClip(android.content.ClipData.newPlainText(label, text))
+
+    private fun readClipboard(): String? {
+        val cm = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+        val clip = cm.primaryClip ?: return null
+        if (clip.itemCount == 0) return null
+        return clip.getItemAt(0).coerceToText(this)?.toString()
+    }
+
+    /** Beim Zurückkehren: enthält die Zwischenablage eine Antwort zur offenen Anfrage? */
+    private fun aiCheckClipboard() {
+        val id = aiRequestId ?: return
+        val clip = readClipboard() ?: return
+        if (clip == aiLastHandledClip) return
+        val code = AiAssist.extractAnswer(clip, id, aiSentPrompt) ?: return
+        aiLastHandledClip = clip
+        aiShowAnswer(id, code)
+    }
+
+    private fun aiShowAnswer(id: String, code: String) {
+        val ctx = this
+        val preview = TextView(ctx).apply {
+            text = code; textSize = 12f; setTextColor(ICON)
+            typeface = android.graphics.Typeface.MONOSPACE
+            setPadding(dp(14), dp(10), dp(14), dp(10))
+        }
+        AlertDialog.Builder(ctx)
+            .setTitle("KI-Antwort erkannt ($id)")
+            .setView(ScrollView(ctx).apply { addView(preview) })
+            .setPositiveButton("In MAIN übernehmen") { _, _ -> aiApply("main", code) }
+            .setNeutralButton("Anderer Tab…") { _, _ -> aiChooseTarget(code) }
+            .setNegativeButton("Verwerfen") { _, _ -> aiClearRequest() }
+            .show()
+    }
+
+    private fun aiChooseTarget(code: String) {
+        val labels = arrayOf("MAIN", "SETUP", "LIB")
+        val keys = arrayOf("main", "setup", "lib")
+        AlertDialog.Builder(this)
+            .setTitle("Code einfügen in…")
+            .setItems(labels) { _, which -> aiApply(keys[which], code) }
+            .setNegativeButton("Abbrechen", null)
+            .show()
+    }
+
+    private fun aiApply(tabKey: String, code: String) {
+        tabs[tabKey] = code
+        editorLoaded = false          // verhindert, dass switchTab den alten Inhalt zurückschreibt
+        switchTab(tabKey)
+        showPanel(panelCode)
+        saveCurrentProject()
+        aiClearRequest()
+        toast("Code übernommen in ${tabKey.uppercase()}")
+    }
+
+    private fun aiClearRequest() {
+        aiRequestId = null; aiSentPrompt = null; aiLastHandledClip = null
     }
 
     // ---------------- Seeds ----------------

@@ -49,9 +49,9 @@ Feature-Details: siehe [`specs/robocode-konzept.md`](specs/robocode-konzept.md).
 - [ ] Optional: Hardware-Objekte (`B.DI1`, `B.DO1`, analog) eingefärbt, dynamisch aus der Board-Config
 
 ### Programmieren mit KI
-- [ ] Kontext (Syntax/API + Board-Config + optional aktuelles Programm) per `Intent.ACTION_SEND` an eine KI-App
-- [ ] Anfrage-ID im Prompt; KI setzt sie in den Code-Kopf; Clipboard-Fallback; beim Zurückwechseln Antwort per ID zuordnen
-- [ ] KI nutzt bestehende Board-Objekte, erfindet keine Pins
+- [x] Kontext (Syntax/API + Board-Config + optional aktuelles Programm) per `Intent.ACTION_SEND` an eine KI-App
+- [x] Anfrage-ID im Prompt; KI setzt sie in den Code-Kopf; Clipboard-Fallback; beim Zurückwechseln Antwort per ID zuordnen
+- [x] KI nutzt bestehende Board-Objekte, erfindet keine Pins
 
 ### Interaktiver Kurs (konzeptioneller Schwerpunkt)
 - [ ] Ansicht mit Doku zu ~15 geführten Projekten
