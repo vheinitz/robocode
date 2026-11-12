@@ -212,6 +212,8 @@ class MainActivity : AppCompatActivity() {
 
         // Projekt-Menü (Titelzeile)
         findViewById<TextView>(R.id.btnProject).setOnClickListener { saveCurrentProject(); showProjectDialog() }
+        // Wortmarke = Startseite (Project Launcher) erneut öffnen.
+        findViewById<TextView>(R.id.brand).setOnClickListener { saveCurrentProject(); showLauncher() }
         findViewById<Button>(R.id.navMain).setOnClickListener { refreshMainPy(); showPanel(panelMain) }
         findViewById<Button>(R.id.navTerminal).setOnClickListener { showPanel(panelTerminal) }
         findViewById<Button>(R.id.navLog).setOnClickListener { showPanel(panelLog) }
@@ -254,6 +256,9 @@ class MainActivity : AppCompatActivity() {
         loadCurrentProject()   // lädt zuletzt genutztes Projekt; zeigt MAIN
         showPanel(panelCode)
         intent?.getStringExtra("panel")?.let { pinnedPanel = it; showPanelByName(it) }
+        // Startseite: Projektliste statt direkt der Editor. Per Panel-Intent
+        // (z. B. für Screenshots) wird sie übersprungen.
+        if (pinnedPanel == null) showLauncher()
 
         val filter = IntentFilter(actionUsbPermission).apply {
             addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED)
@@ -1359,6 +1364,140 @@ class MainActivity : AppCompatActivity() {
             .setMessage("„${info.name}“ wird dauerhaft gelöscht.")
             .setPositiveButton("Löschen") { _, _ -> removeProject(info.id); after() }
             .setNegativeButton("Abbrechen", null).show()
+    }
+
+    // ---------------- Startseite / Project Launcher (P1) ----------------
+
+    // Vollflächiges Overlay über der Oberfläche; null = nicht sichtbar.
+    private var launcherView: View? = null
+
+    /** Startseite zeigen: Projektliste (Neu / Fortsetzen / Öffnen / Starten). */
+    private fun showLauncher() {
+        val content = findViewById<android.widget.FrameLayout>(android.R.id.content)
+        launcherView?.let { content.removeView(it) }
+        val v = buildLauncherView()
+        launcherView = v
+        content.addView(
+            v,
+            android.widget.FrameLayout.LayoutParams(
+                android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+            ),
+        )
+    }
+
+    private fun hideLauncher() {
+        launcherView?.let { (it.parent as? android.view.ViewGroup)?.removeView(it) }
+        launcherView = null
+    }
+
+    private fun buildLauncherView(): View {
+        val ctx = this
+        projectsInfo = ProjectStore.list(this)
+        val root = ScrollView(ctx).apply {
+            setBackgroundColor(0xFFFFFFFF.toInt())
+            isClickable = true // Touches nicht an die Oberfläche darunter durchreichen
+        }
+        val col = LinearLayout(ctx).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(22), dp(28), dp(22), dp(24))
+        }
+        root.addView(col)
+
+        col.addView(TextView(ctx).apply {
+            text = "RoboCode"; textSize = 26f; setTextColor(ICON)
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+        })
+        col.addView(TextView(ctx).apply {
+            text = "Wähle ein Projekt oder leg ein neues an."
+            textSize = 13f; setTextColor(GRAY); setPadding(0, dp(4), 0, dp(16))
+        })
+
+        col.addView(launcherButton("+  Neues Projekt", GREEN) {
+            newProject(); hideLauncher(); showPanel(panelCode)
+        })
+        if (currentId.isNotEmpty()) {
+            col.addView(launcherButton("▸  Fortsetzen — $currentName", ICON) {
+                hideLauncher(); showPanel(panelCode)
+            })
+        }
+
+        col.addView(TextView(ctx).apply {
+            text = "PROJEKTE"; textSize = 11f; setTextColor(GRAY)
+            setPadding(dp(2), dp(22), 0, dp(4)); letterSpacing = 0.08f
+        })
+        if (projectsInfo.isEmpty()) {
+            col.addView(TextView(ctx).apply {
+                text = "Noch keine gespeicherten Projekte."
+                textSize = 13f; setTextColor(GRAY); setPadding(dp(2), dp(6), 0, 0)
+            })
+        }
+        for (info in projectsInfo) col.addView(buildLauncherRow(info))
+        return root
+    }
+
+    private fun launcherButton(label: String, color: Int, onClick: () -> Unit): View =
+        TextView(this).apply {
+            text = label; textSize = 15f; setTextColor(0xFFFFFFFF.toInt())
+            isSingleLine = true; ellipsize = android.text.TextUtils.TruncateAt.END
+            setPadding(dp(16), dp(14), dp(16), dp(14))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dp(10).toFloat(); setColor(color)
+            }
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).apply { topMargin = dp(8) }
+            isClickable = true
+            setOnClickListener { onClick() }
+        }
+
+    /** Projektzeile: Name öffnet im Editor; Projekte mit Tafel sind direkt startbar. */
+    private fun buildLauncherRow(info: ProjectStore.Info): View {
+        val ctx = this
+        val hasDash = ProjectStore.load(ctx, info.id)?.dashboard?.isNotEmpty() == true
+        val isCur = info.id == currentId
+        return LinearLayout(ctx).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dp(10).toFloat(); setColor(0xFFF2F4F7.toInt())
+                if (isCur) setStroke(dp(2), GREEN)
+            }
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).apply { topMargin = dp(8) }
+            setPadding(dp(14), dp(12), dp(10), dp(12))
+
+            addView(LinearLayout(ctx).apply {
+                orientation = LinearLayout.VERTICAL
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                addView(TextView(ctx).apply {
+                    text = info.name; textSize = 16f; setTextColor(ICON)
+                    isSingleLine = true; ellipsize = android.text.TextUtils.TruncateAt.END
+                })
+                addView(TextView(ctx).apply {
+                    text = if (hasDash) "mit Tafel" else "Programm"
+                    textSize = 11f; setTextColor(GRAY)
+                })
+                isClickable = true
+                setOnClickListener { openProject(info.id); hideLauncher(); showPanel(panelCode) }
+            })
+
+            if (hasDash) addView(TextView(ctx).apply {
+                text = "▶ Starten"; textSize = 13f; setTextColor(0xFFFFFFFF.toInt())
+                setPadding(dp(12), dp(8), dp(12), dp(8))
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = dp(8).toFloat(); setColor(GREEN)
+                }
+                isClickable = true
+                setOnClickListener { openProject(info.id); hideLauncher(); showPanelByName("tafel") }
+            })
+        }
+    }
+
+    override fun onBackPressed() {
+        // Aus dem Editor zurück → Startseite; von der Startseite → App verlassen.
+        if (launcherView == null) showLauncher() else super.onBackPressed()
     }
 
     // ---------------- Seeds ----------------

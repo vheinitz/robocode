@@ -35,13 +35,14 @@ Feature-Details: siehe [`specs/robocode-konzept.md`](specs/robocode-konzept.md).
 ## Priorität 1 — Kern-Erlebnis
 
 ### Projektverwaltung reparieren
-- [ ] Speichern / Umbenennen / Kopieren / Neu / Öffnen klar getrennt
-- [ ] „Kopieren" darf das Original **nicht** umbenennen; die Kopie bekommt einen eigenen Namen
-- [ ] Namensfeld nicht als Nebenwirkung anderer Aktionen (Grundlage für die Startseite)
+- [x] Speichern / Umbenennen / Kopieren / Neu / Öffnen klar getrennt
+- [x] „Kopieren" darf das Original **nicht** umbenennen; die Kopie bekommt einen eigenen Namen
+- [x] Namensfeld nicht als Nebenwirkung anderer Aktionen (Grundlage für die Startseite)
 
 ### Startseite (Project Launcher)
-- [ ] Start zeigt eine Projektliste (Neu / Fortsetzen / Öffnen) statt direkt den Editor
-- [ ] Projekte mit Dashboard direkt startbar; ohne Dashboard → Editor
+- [x] Start zeigt eine Projektliste (Neu / Fortsetzen / Öffnen) statt direkt den Editor
+- [x] Projekte mit Dashboard direkt startbar; ohne Dashboard → Editor
+- [x] Wortmarke „RoboCode" öffnet die Startseite erneut; Zurück-Taste führt dorthin
 
 ### Editor — Syntax-Highlighting
 - [ ] Standard-Python-Highlighting über eine fertige Editor-Komponente (z. B. Sora Editor)

@@ -15,13 +15,15 @@
         android:paddingTop="4dp"
         android:paddingBottom="4dp">
 
-        <TextView
+        <TextView android:id="@+id/brand"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="RoboCode"
             android:textSize="15sp"
             android:textStyle="bold"
-            android:letterSpacing="0.02" />
+            android:letterSpacing="0.02"
+            android:clickable="true"
+            android:focusable="true" />
 
         <TextView android:id="@+id/btnProject"
             android:layout_width="wrap_content" android:layout_height="wrap_content"
