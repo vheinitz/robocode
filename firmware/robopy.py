@@ -612,6 +612,115 @@ def RGB(pin, n=1, name=None):
 
 
 # ===========================================================================
+# Bibliotheks-Schichten (Roadmap 2, ANSATZWEISE) — Components & Devices.
+#
+#   Board  -> Components -> Devices -> Applications
+#
+# Components sind kleine, vertraute Wrapper ueber die Basis (DO/DI/AI/PWM):
+# Led/Button/AnalogInput/RGB/Motor gibt es schon oben; hier kommen Buzzer und
+# Servo dazu. Devices kombinieren mehrere Components (hier: TrafficLight aus drei
+# Ausgaengen). Alles laeuft auf reiner GPIO/PWM-Basis — also auch in der PC-
+# Simulation sichtbar, ohne Zusatztreiber.
+#
+# NOCH OFFEN (restliche Roadmap 2, brauchen echte Hardware/Treiber): I2C-Layer,
+# Display (SSD1306), Temperature/Distance/Motion (BME280/VL53L0X/MPU6050) und
+# die Lese-Sprache READ/SHOW. Bewusst spaeter.
+# ===========================================================================
+
+class _Buzzer:
+    """Piezo-Summer an einem PWM-Pin: beep() oder tone(freq, ms)."""
+
+    def __init__(self, pin, name=None):
+        self._pin = pin
+        self._name = name or ("BUZ@%d" % pin)
+        if SIM:
+            _label_out(pin, self._name)
+
+    def tone(self, freq=1000, ms=None):
+        _pwm(self._pin, 512, int(_val(freq)))   # ~50 % Tastgrad = Ton
+        if ms is not None:
+            sleep_ms(int(_val(ms)))
+            self.off()
+
+    def beep(self, ms=150):
+        self.tone(1000, ms)
+
+    def off(self):
+        _pwm(self._pin, 0, 1000)
+
+
+def Buzzer(pin, name=None):
+    return _Buzzer(pin, name=name)
+
+
+class _Servo:
+    """Modellbau-Servo an einem PWM-Pin. angle(0..180) oder servo.v = 90.
+    50 Hz, Puls 0,5..2,5 ms (Standard-Servo)."""
+
+    def __init__(self, pin, name=None):
+        self._pin = pin
+        self._deg = 90
+        self._name = name or ("SRV@%d" % pin)
+        if SIM:
+            _label_out(pin, self._name)
+        self._apply()
+
+    def _apply(self):
+        pulse_ms = 0.5 + (self._deg / 180.0) * 2.0   # 0,5..2,5 ms
+        _pwm(self._pin, int(pulse_ms / 20.0 * 1023), 50)
+
+    def angle(self, deg):
+        self._deg = max(0, min(180, int(_val(deg))))
+        self._apply()
+
+    @property
+    def v(self):
+        return self._deg
+
+    @v.setter
+    def v(self, deg):
+        self.angle(deg)
+
+
+def Servo(pin, name=None):
+    return _Servo(pin, name=name)
+
+
+class _TrafficLight:
+    """Device: Ampel aus drei Ausgaengen. red()/yellow()/green()/off()."""
+
+    def __init__(self, r, y, g, name=None):
+        n = name or "AMPEL"
+        self._r = _DigitalOut(r, name=n + ".rot")
+        self._y = _DigitalOut(y, name=n + ".gelb")
+        self._g = _DigitalOut(g, name=n + ".gruen")
+
+    def _only(self, which):
+        self._r.v = 1 if which == "r" else 0
+        self._y.v = 1 if which == "y" else 0
+        self._g.v = 1 if which == "g" else 0
+
+    def red(self):
+        self._only("r")
+
+    def yellow(self):
+        self._only("y")
+
+    def green(self):
+        self._only("g")
+
+    def off(self):
+        self._only("")
+
+
+def TrafficLight(r, y, g, name=None):
+    return _TrafficLight(r, y, g, name=name)
+
+
+AMPEL = TrafficLight  # deutscher Alias
+
+
+# ===========================================================================
 # Board-Objekt `b` mit Port-Properties — die klammerlose Kurzsprache.
 #
 #   b.do1 = 1      Ausgang an      (0/1 = digital; jede andere Zahl = PWM 0..255)

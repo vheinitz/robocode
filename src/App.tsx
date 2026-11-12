@@ -18,6 +18,8 @@ import { assembleSketch } from './hw/assemble'
 import { BOARDS, getBoard, defaultPins, isValidName, ROLE_LABEL, PinDesc, PinRole, Slot } from './hw/boards'
 import BlockEditor, { BlockEditorHandle } from './editor/BlockEditor'
 import { Icon } from './editor/icons'
+import { useDevice, device } from './device/useDevice'
+import type { Phase } from './device/device'
 
 // Feste Code-Container; sichtbar ist (wie in der Android-App) nur MAIN.
 const TAB_ORDER: BlockKind[] = ['setup', 'main', 'lib']
@@ -136,17 +138,39 @@ function uniqueName(base: string): string {
   return `${base} ${i}`
 }
 
+// Farbe des Status-Punkts je Geräte-Phase.
+function phaseDot(phase: Phase): string {
+  switch (phase) {
+    case 'connected':
+    case 'running':
+      return 'bg-green-500'
+    case 'connecting':
+    case 'flashing':
+      return 'bg-amber-500'
+    case 'nomp':
+      return 'bg-amber-500'
+    default:
+      return 'bg-gray-400'
+  }
+}
+
 export default function App() {
   const [project, setProject] = useState<Project>(() => ensurePlayground(loadOrCreateCurrent()))
   const [projects, setProjects] = useState<ProjectInfo[]>(() => listProjects())
   const blocks = TAB_ORDER.map((k) => project.blocks.find((b) => b.kind === k)!).filter(Boolean)
   const activeKind: BlockKind = 'main'
-  const [view, setView] = useState<'code' | 'board' | 'main'>('code')
+  const [view, setView] = useState<'code' | 'board' | 'device' | 'main'>('code')
   const [menuOpen, setMenuOpen] = useState(false)
   const [grp, setGrp] = useState<null | Grp>(null)
   const [grpPort, setGrpPort] = useState<null | 'do' | 'di' | 'a'>(null)
   const [waitMs, setWaitMs] = useState(500)
   const [showHelp, setShowHelp] = useState(false)
+  const [termInput, setTermInput] = useState('')
+  const [confirmInstall, setConfirmInstall] = useState(false)
+
+  const dev = useDevice()
+  const termRef = useRef<HTMLDivElement | null>(null)
+  const logRef = useRef<HTMLDivElement | null>(null)
 
   const editorRef = useRef<BlockEditorHandle | null>(null)
 
@@ -174,6 +198,14 @@ export default function App() {
     const by = (k: BlockKind) => project.blocks.find((b) => b.kind === k)?.code ?? ''
     return assembleSketch({ setup: by('setup'), lib: by('lib'), main: by('main') }, board, project.pins)
   }, [project, board])
+
+  // Terminal/Log automatisch nach unten scrollen.
+  useEffect(() => {
+    termRef.current?.scrollTo({ top: termRef.current.scrollHeight })
+  }, [dev.terminal])
+  useEffect(() => {
+    logRef.current?.scrollTo({ top: logRef.current.scrollHeight })
+  }, [dev.log])
 
   function updateBlock(id: string, patch: Partial<Block>) {
     setProject((p) => ({ ...p, blocks: p.blocks.map((b) => (b.id === id ? { ...b, ...patch } : b)) }))
@@ -354,6 +386,14 @@ export default function App() {
           <span className="text-gray-400">▾</span>
         </button>
         <div className="ml-auto flex items-center gap-1.5">
+          <button
+            onClick={() => setView('device')}
+            title={`Gerät — ${dev.status}`}
+            className="flex items-center gap-1 rounded border border-gray-300 bg-gray-50 px-2 py-0.5 text-[11px] text-gray-600 hover:border-teal-400"
+          >
+            <span className={`inline-block h-2 w-2 rounded-full ${phaseDot(dev.phase)}`} />
+            <span className="max-w-[7rem] truncate">{dev.status}</span>
+          </button>
           <button title="Export (JSON)" onClick={handleExport} className={iconBtn}><Icon name="download" size={16} /></button>
         </div>
 
@@ -396,7 +436,7 @@ export default function App() {
 
       {/* Nav-Tabs: Code | Board | main.py */}
       <div className="flex shrink-0 bg-[#1a1f27]">
-        {([['code', 'Code'], ['board', 'Board'], ['main', 'main.py']] as const).map(([v, label]) => (
+        {([['code', 'Code'], ['board', 'Board'], ['device', 'Gerät'], ['main', 'main.py']] as const).map(([v, label]) => (
           <button
             key={v}
             onClick={() => setView(v)}
@@ -624,6 +664,126 @@ export default function App() {
         </div>
       )}
 
+      {/* Panel: GERÄT (Web Serial — verbinden, flashen, starten, Terminal) */}
+      {view === 'device' && (
+        <div className="flex min-h-0 flex-1 flex-col bg-white">
+          {/* Werkzeugzeile */}
+          <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-gray-200 bg-gray-50 px-2 py-1.5">
+            <span className={`inline-block h-2.5 w-2.5 rounded-full ${phaseDot(dev.phase)}`} />
+            <span className="mr-1 text-xs text-gray-700">{dev.status}</span>
+            {dev.phase === 'idle' ? (
+              <button
+                onClick={() => device.connect()}
+                disabled={!dev.supported || dev.busy}
+                className="rounded border border-teal-300 bg-teal-50 px-2 py-0.5 text-xs text-teal-700 hover:bg-teal-100 disabled:opacity-40"
+              >
+                Verbinden
+              </button>
+            ) : (
+              <button
+                onClick={() => device.disconnect()}
+                className="rounded border border-gray-300 bg-white px-2 py-0.5 text-xs text-gray-700 hover:bg-gray-50"
+              >
+                Trennen
+              </button>
+            )}
+            {(dev.phase === 'connected' || dev.phase === 'running') && (
+              <button
+                onClick={() => device.run(assembled.mainPy)}
+                disabled={dev.busy}
+                className="inline-flex items-center gap-1 rounded border border-green-400 bg-green-50 px-2 py-0.5 text-xs font-semibold text-green-700 hover:bg-green-100 disabled:opacity-40"
+              >
+                <Icon name="start" size={13} /> Start
+              </button>
+            )}
+            {(dev.phase === 'connected' || dev.phase === 'nomp') && (
+              <button
+                onClick={() => setConfirmInstall(true)}
+                disabled={dev.busy}
+                className="rounded border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs text-amber-700 hover:bg-amber-100 disabled:opacity-40"
+              >
+                MicroPython installieren
+              </button>
+            )}
+          </div>
+
+          {!dev.supported && (
+            <div className="shrink-0 border-b border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-800">
+              Dieser Browser hat keine <b>Web Serial API</b>. Nutze Chrome oder Edge am Desktop
+              (über HTTPS oder localhost). Zum Erst-Flashen geht auch die Android-App.
+            </div>
+          )}
+
+          {dev.phase === 'nomp' && (
+            <div className="shrink-0 border-b border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-800">
+              Auf dem ESP32 läuft noch kein MicroPython. Tippe <b>MicroPython installieren</b>.
+            </div>
+          )}
+
+          {dev.phase === 'flashing' && (
+            <div className="shrink-0 border-b border-gray-200 bg-white px-3 py-2">
+              <div className="mb-1 text-[12px] text-gray-700">MicroPython wird installiert … bitte <b>nicht</b> abbrechen.</div>
+              <div className="h-2 w-full overflow-hidden rounded bg-gray-200">
+                <div className="h-full bg-teal-500 transition-all" style={{ width: `${dev.flashPct}%` }} />
+              </div>
+            </div>
+          )}
+
+          {/* Terminal — serielle Programmausgabe */}
+          <div className="flex min-h-0 flex-1 flex-col">
+            <div className="flex shrink-0 items-center justify-between px-2 py-1">
+              <span className="text-[11px] uppercase tracking-wide text-gray-500">Terminal</span>
+              <button onClick={() => device.clearTerminal()} className={iconBtn}>leeren</button>
+            </div>
+            <div ref={termRef} className="min-h-0 flex-1 overflow-auto bg-[#12151b] px-3 py-2 font-mono text-[12px] leading-relaxed text-[#9be7a0]">
+              {dev.terminal.length === 0 ? (
+                <span className="text-gray-500">— noch keine Ausgabe —</span>
+              ) : (
+                dev.terminal.map((l, i) => <div key={i} className="whitespace-pre-wrap break-words">{l}</div>)
+              )}
+            </div>
+            <div className="flex shrink-0 items-center gap-1 border-t border-gray-200 bg-gray-50 px-2 py-1">
+              <input
+                value={termInput}
+                onChange={(e) => setTermInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && termInput) {
+                    device.sendLine(termInput)
+                    setTermInput('')
+                  }
+                }}
+                placeholder="Zeile senden…"
+                disabled={dev.phase !== 'running'}
+                className="min-w-0 flex-1 rounded border border-gray-300 bg-white px-2 py-0.5 font-mono text-[12px] text-gray-800 disabled:bg-gray-100"
+              />
+              <button
+                onClick={() => {
+                  if (termInput) {
+                    device.sendLine(termInput)
+                    setTermInput('')
+                  }
+                }}
+                disabled={dev.phase !== 'running'}
+                className="rounded border border-gray-300 bg-white px-2 py-0.5 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-40"
+              >
+                Senden
+              </button>
+            </div>
+          </div>
+
+          {/* Protokoll (klein) */}
+          <div className="shrink-0 border-t border-gray-200">
+            <div className="flex items-center justify-between px-2 py-0.5">
+              <span className="text-[10px] uppercase tracking-wide text-gray-400">Protokoll</span>
+              <button onClick={() => device.clearLog()} className="text-[11px] text-gray-400 hover:text-gray-700">leeren</button>
+            </div>
+            <div ref={logRef} className="h-20 overflow-auto bg-gray-50 px-2 pb-1 font-mono text-[11px] text-gray-600">
+              {dev.log.map((l, i) => <div key={i} className="whitespace-pre-wrap break-words">{l}</div>)}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Panel: main.py */}
       {view === 'main' && (
         <div className="flex min-h-0 flex-1 flex-col">
@@ -639,6 +799,28 @@ export default function App() {
           <pre className="min-h-0 flex-1 overflow-auto bg-[#12151b] p-3 font-mono text-[11px] leading-relaxed text-gray-200">
             {assembled.mainPy}
           </pre>
+        </div>
+      )}
+
+      {/* Installations-Warnung (statt Browser-Dialog) */}
+      {confirmInstall && (
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/40 p-4" onClick={() => setConfirmInstall(false)}>
+          <div className="w-full max-w-sm rounded-xl bg-white p-4 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <h2 className="mb-2 text-sm font-bold text-gray-900">MicroPython installieren</h2>
+            <p className="mb-3 text-[13px] text-gray-700">
+              Die Firmware <span className="font-mono">{board.name}</span> wird auf den ESP32 geschrieben.
+              Das dauert etwas — <b>bitte nicht abbrechen</b> und die Seite nicht schließen, solange es läuft.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setConfirmInstall(false)} className="rounded border border-gray-300 bg-white px-3 py-1 text-xs text-gray-700 hover:bg-gray-50">Abbrechen</button>
+              <button
+                onClick={() => { setConfirmInstall(false); device.install(board) }}
+                className="rounded border border-amber-400 bg-amber-500 px-3 py-1 text-xs font-semibold text-white hover:bg-amber-600"
+              >
+                Jetzt installieren
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

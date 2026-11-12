@@ -9,3 +9,7 @@ dist-ssr
 # Python
 __pycache__/
 *.pyc
+
+# MicroPython-Firmware (zu groß fürs Repo; via scripts/fetch-firmware.sh)
+public/firmware/*.bin
+android/app/src/main/assets/firmware/*.bin

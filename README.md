@@ -26,11 +26,29 @@ zum Anschließen auf; läuft noch kein MicroPython, bietet sie an, es zu **flash
 Das **Board wird automatisch erkannt** (aus `os.uname()` bzw. dem ROM-Chip), der
 Verbindungsstatus steht in der Titelzeile.
 
+## Web-Playground (Browser als echte Hardware-Umgebung)
+
+Der Web-Playground kann den ESP32 jetzt **direkt aus dem Browser** ansprechen
+(Chrome/Edge am Desktop, über die **Web Serial API**): im Tab **Gerät**
+verbinden, **MicroPython installieren** (Flashen via `esptool-js`), das Programm
+**starten** (raw-REPL-Upload) und die serielle Ausgabe im **Terminal** mitlesen.
+Die App ist als **PWA** installierbar und offline-fähig (App-Hülle gecacht).
+
+**Rollenverteilung** (bewusst, kein Entweder-oder):
+
+| Rolle | Wer |
+|-------|-----|
+| **Erst-Flasher** (MicroPython installieren) | **Android-APK** (primär) — Web/PWA kann es auch |
+| **Haupt-Programmierumgebung** (schreiben, übertragen, Terminal) | **Web/PWA** |
+| **Ausführung** | der **ESP32** selbst |
+
 ## Die Sprache (DSL)
 
 Basis sind **`DI` / `DO` / `AI` / `AO`** (digital/analog, ein/aus). Darüber liegen
-vertraute Synonyme als Wrapper: **`LED` · `TASTER` · `MOTOR` · `RGB`** (WS2812).
-Kurz und klammerarm dank Properties:
+vertraute Synonyme als Wrapper: **`LED` · `TASTER` · `MOTOR` · `RGB`** (WS2812),
+dazu erste **Components/Devices**: **`Buzzer`** (beep/tone), **`Servo`** (angle)
+und **`TrafficLight`/`AMPEL`** (rot/gelb/grün). Kurz und klammerarm dank
+Properties:
 
 ```python
 # SETUP
@@ -54,7 +72,7 @@ Lese-Objekte verhalten sich im Ausdruck wie ihre Zahl — oft **ohne `.v`**:
 
 | Pfad | Inhalt |
 |------|--------|
-| `src/` | Web-Playground (Vite + React + CodeMirror), Entwickler-/Testwerkzeug für die Sprache |
+| `src/` | Web-Playground (Vite + React + CodeMirror) — Haupt-Programmierumgebung; `src/device/` = Web Serial, raw-REPL, esptool-js-Flasher |
 | `firmware/robopy.py` | die DSL-Bibliothek (EeZear-Stil); läuft auf MicroPython **und** als CPython-Simulation am PC |
 | `android/` | native Android-App (Kotlin): Editor, Zusammenbau, USB-OTG-Flashen & -Übertragung |
 
@@ -66,8 +84,12 @@ Die DSL (`firmware/robopy.py`) wird von beiden Seiten geteilt (App-Kopie unter
 **Web-Playground**
 ```bash
 npm install
-./start.sh          # Vite-Dev-Server (http://localhost:5173)
+scripts/fetch-firmware.sh   # nur fürs Browser-Flashen: MicroPython-Bins nach public/firmware/
+./start.sh                  # Vite-Dev-Server (http://localhost:5173)
 ```
+Web Serial braucht Chrome/Edge am Desktop und einen sicheren Kontext
+(`localhost` oder HTTPS). Ohne die Firmware-Bins bleibt das Verbinden/Übertragen
+nutzbar — nur das Browser-Flashen braucht sie (sonst mit der Android-App flashen).
 
 **Android-App**
 ```bash
