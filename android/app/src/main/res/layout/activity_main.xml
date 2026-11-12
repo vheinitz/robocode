@@ -173,6 +173,12 @@
                 android:gravity="center" android:textSize="16sp" android:textColor="#374151"
                 android:background="@drawable/bg_icon_button" android:layout_marginEnd="4dp"
                 android:clickable="true" android:focusable="true" />
+            <TextView android:id="@+id/edUndo" android:text="↶"
+                android:layout_width="0dp" android:layout_weight="1" android:layout_height="32dp"
+                android:gravity="center" android:textSize="18sp" android:textColor="#374151"
+                android:background="@drawable/bg_icon_button" android:layout_marginEnd="4dp"
+                android:contentDescription="Rückgängig"
+                android:clickable="true" android:focusable="true" />
             <TextView android:id="@+id/edClear" android:text="🗑"
                 android:layout_width="0dp" android:layout_weight="1" android:layout_height="32dp"
                 android:gravity="center" android:textSize="15sp" android:textColor="#C0392B"

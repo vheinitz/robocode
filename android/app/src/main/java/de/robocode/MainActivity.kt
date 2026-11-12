@@ -108,6 +108,10 @@ class MainActivity : AppCompatActivity() {
     private var active = "setup"
     private var suppressWatcher = false
     private var editorLoaded = false
+    // Rückgängig: Schnappschüsse (Reiter + Text) vor Änderungen; Tippen wird
+    // zeitlich gebündelt (nicht jeder Tastendruck ein eigener Schritt).
+    private val undoStack = ArrayDeque<Pair<String, String>>()
+    private var lastUndoPush = 0L
 
     // Projektverwaltung (0.1)
     private var currentId = ""
@@ -225,6 +229,7 @@ class MainActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.edDelLine).setOnClickListener { edDeleteLine() }
         findViewById<TextView>(R.id.edUp).setOnClickListener { edLineMove(-1) }
         findViewById<TextView>(R.id.edDown).setOnClickListener { edLineMove(1) }
+        findViewById<TextView>(R.id.edUndo).setOnClickListener { undo() }
         findViewById<TextView>(R.id.edClear).setOnClickListener { confirmClearEditor() }
 
         // Projekt-Menü (Titelzeile)
@@ -270,7 +275,13 @@ class MainActivity : AppCompatActivity() {
 
         editor.addTextChangedListener(object : TextWatcher {
             override fun afterTextChanged(s: Editable?) { if (!suppressWatcher) tabs[active] = s?.toString() ?: "" }
-            override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+            override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {
+                // Tippen in ~700-ms-Blöcke bündeln: einen Schnappschuss des
+                // Standes VOR dieser Änderung sichern (für „Rückgängig").
+                if (suppressWatcher) return
+                val now = System.currentTimeMillis()
+                if (now - lastUndoPush > 700) { pushUndo(s?.toString() ?: ""); lastUndoPush = now }
+            }
             override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
         })
 
@@ -1044,18 +1055,39 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** Editor-Inhalt des aktuellen Reiters ganz leeren (mit Rückfrage). */
+    /** Editor-Inhalt des aktuellen Reiters ganz leeren (mit Rückfrage; per ↶ zurückholbar). */
     private fun confirmClearEditor() {
         AlertDialog.Builder(this)
             .setTitle("Editor leeren?")
-            .setMessage("Der gesamte Code im aktuellen Reiter (${active.uppercase()}) wird gelöscht.")
+            .setMessage("Der gesamte Code im aktuellen Reiter (${active.uppercase()}) wird gelöscht. Mit ↶ holst du ihn zurück.")
             .setPositiveButton("Leeren") { _, _ ->
+                pushUndo(editor.text?.toString() ?: "")
                 suppressWatcher = true; editor.setText(""); suppressWatcher = false
                 tabs[active] = ""
                 saveCurrentProject()
             }
             .setNegativeButton("Abbrechen", null)
             .show()
+    }
+
+    /** Einen Rückgängig-Schnappschuss ablegen (Reiter + Text), Duplikate vermeiden. */
+    private fun pushUndo(text: String, tab: String = active) {
+        val last = undoStack.lastOrNull()
+        if (last != null && last.first == tab && last.second == text) return
+        undoStack.addLast(tab to text)
+        while (undoStack.size > 80) undoStack.removeFirst()
+    }
+
+    /** Letzten Schnappschuss wiederherstellen (ggf. in den passenden Reiter wechseln). */
+    private fun undo() {
+        if (undoStack.isEmpty()) { toast("Nichts zum Rückgängigmachen"); return }
+        val (tab, text) = undoStack.removeLast()
+        tabs[tab] = text
+        editorLoaded = false
+        switchTab(tab)
+        lastUndoPush = 0L
+        saveCurrentProject()
+        toast("Rückgängig")
     }
 
     /** Tafel-Ansichten aus [dashboard] neu aufbauen und nach LOG-Namen indizieren. */
@@ -1293,6 +1325,7 @@ class MainActivity : AppCompatActivity() {
 
     /** Ein Projekt in die Oberfläche übernehmen (Code-Tabs, Board, Pins, Name). */
     private fun applyProject(p: RoboProject) {
+        undoStack.clear()          // Rückgängig gilt nur innerhalb eines Projekts
         currentId = p.id; currentName = p.name
         val idx = Boards.ALL.indexOfFirst { it.id == p.boardId }.coerceAtLeast(0)
         syncingBoard = true
@@ -1665,7 +1698,8 @@ class MainActivity : AppCompatActivity() {
         aiRememberRequest(id, prompt)             // merkt die Anfrage auch über einen App-Neustart hinweg
         copyToClipboard("RoboCode-KI", prompt)    // Sicherheit: Kontext liegt schon in der Zwischenablage
         // MAIN leeren — die KI-Antwort ersetzt es beim Zurückkehren. Der alte
-        // Inhalt steckt bereits im gesendeten Kontext.
+        // Inhalt steckt im Kontext UND im Rückgängig-Stack (↶ holt ihn zurück).
+        pushUndo(tabs["main"] ?: "", "main")
         tabs["main"] = ""
         if (active == "main") { suppressWatcher = true; editor.setText(""); suppressWatcher = false }
 
