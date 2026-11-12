@@ -5,7 +5,7 @@
     android:orientation="vertical">
 
     <!-- Titelzeile: kleines „RoboCode" + Verbindungsstatus -->
-    <LinearLayout
+    <LinearLayout android:id="@+id/titleBar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
@@ -45,7 +45,7 @@
     </LinearLayout>
 
     <!-- Top-Navigation -->
-    <LinearLayout
+    <LinearLayout android:id="@+id/navBar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
@@ -171,7 +171,13 @@
             <TextView android:id="@+id/edDown" android:text="↓"
                 android:layout_width="0dp" android:layout_weight="1" android:layout_height="32dp"
                 android:gravity="center" android:textSize="16sp" android:textColor="#374151"
+                android:background="@drawable/bg_icon_button" android:layout_marginEnd="4dp"
+                android:clickable="true" android:focusable="true" />
+            <TextView android:id="@+id/edClear" android:text="🗑"
+                android:layout_width="0dp" android:layout_weight="1" android:layout_height="32dp"
+                android:gravity="center" android:textSize="15sp" android:textColor="#C0392B"
                 android:background="@drawable/bg_icon_button"
+                android:contentDescription="Editor ganz leeren"
                 android:clickable="true" android:focusable="true" />
         </LinearLayout>
     </LinearLayout>
@@ -283,13 +289,16 @@
         android:padding="6dp"
         android:visibility="gone">
 
-        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        <LinearLayout android:id="@+id/terminalToolbar" android:layout_width="match_parent" android:layout_height="wrap_content"
             android:orientation="horizontal" android:gravity="center_vertical">
             <TextView android:id="@+id/terminalTitle" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"
                 android:text="Terminal" android:textSize="11sp" android:textColor="#8a93a2" />
             <Button android:id="@+id/btnDashAdd" style="?android:attr/buttonStyleSmall"
                 android:layout_width="wrap_content" android:layout_height="wrap_content"
                 android:text="+ Widget" android:visibility="gone" />
+            <Button android:id="@+id/btnDashFull" style="?android:attr/buttonStyleSmall"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="⛶" android:visibility="gone" />
             <Button android:id="@+id/btnDashToggle" style="?android:attr/buttonStyleSmall"
                 android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Tafel" />
             <Button android:id="@+id/btnTerminalStop" style="?android:attr/buttonStyleSmall"

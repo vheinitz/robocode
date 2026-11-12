@@ -21,7 +21,8 @@ enum class WidgetType(val code: String, val label: String) {
     GAU("GAU", "Zeiger"),
     BAR("BAR", "Balken"),
     TXT("TXT", "Text"),
-    LED("LED", "Lampe");
+    LED("LED", "Lampe"),
+    OSZ("OSZ", "Oszilloskop");
 
     companion object {
         fun from(code: String): WidgetType = entries.firstOrNull { it.code.equals(code, true) } ?: TXT
@@ -30,7 +31,8 @@ enum class WidgetType(val code: String, val label: String) {
 
 /**
  * Ein Tafel-Element. [name] ist der LOG-Schlüssel (z. B. `DIST`), [min]/[max] der
- * erwartete Wertebereich für Zeiger/Balken. Wird pro Projekt gespeichert.
+ * erwartete Wertebereich für Zeiger/Balken/Oszilloskop. Beim Oszilloskop hält
+ * [name] mehrere Kanäle, mit Komma getrennt (z. B. `ax,ay`). Pro Projekt gespeichert.
  */
 data class Widget(
     var id: String,
@@ -38,7 +40,12 @@ data class Widget(
     var name: String,
     var min: Double = 0.0,
     var max: Double = 100.0,
-)
+) {
+    /** LOG-Namen, auf die dieses Widget hört. Oszilloskop: mehrere (Komma). */
+    fun channels(): List<String> =
+        if (type == WidgetType.OSZ) name.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+        else listOf(name)
+}
 
 fun newWidgetId(): String = "w_" + System.currentTimeMillis().toString(36) + "_" + (0..9999).random()
 
@@ -53,6 +60,8 @@ class DashWidgetView(context: Context, val widget: Widget) : View(context) {
     private var value: Double? = null
     private var textValue: String? = null
     private val history = ArrayDeque<Float>()
+    // Oszilloskop: je Kanal (GROSS-Name) eine eigene Wert-History.
+    private val oszHist = LinkedHashMap<String, ArrayDeque<Float>>()
 
     private val d = resources.displayMetrics.density
     private fun dp(v: Float) = v * d
@@ -70,11 +79,18 @@ class DashWidgetView(context: Context, val widget: Widget) : View(context) {
     private var pending = false
     private val flush = Runnable { pending = false; invalidate() }
 
-    /** Rohen Logwert übernehmen; [num] ist die geparste Zahl (oder null für Text). */
-    fun feed(raw: String, num: Double?) {
+    /** Rohen Logwert eines Kanals übernehmen; [num] ist die geparste Zahl (oder
+     *  null für Text). [channel] ist der LOG-Name (für das Oszilloskop relevant). */
+    fun feed(channel: String, raw: String, num: Double?) {
         when (widget.type) {
             WidgetType.TXT -> textValue = raw
             WidgetType.LED -> value = if (isOn(raw, num)) 1.0 else 0.0
+            WidgetType.OSZ -> {
+                if (num == null) return
+                val h = oszHist.getOrPut(channel.uppercase()) { ArrayDeque() }
+                h.addLast(num.toFloat())
+                while (h.size > OSZ_HIST) h.removeFirst()
+            }
             else -> {
                 if (num == null) return
                 value = num
@@ -102,6 +118,7 @@ class DashWidgetView(context: Context, val widget: Widget) : View(context) {
                 WidgetType.BAR -> 92f
                 WidgetType.LED -> 78f
                 WidgetType.TXT -> 70f
+                WidgetType.OSZ -> 180f
             },
         ).toInt()
         setMeasuredDimension(w, h)
@@ -114,8 +131,9 @@ class DashWidgetView(context: Context, val widget: Widget) : View(context) {
 
         val left = card.left + dp(10f)
         val top = card.top + dp(8f)
-        c.drawText(widget.name, left, top + pLabel.textSize, pLabel)
-        if (widget.type == WidgetType.GAU || widget.type == WidgetType.BAR) {
+        // Oszilloskop zeichnet eine farbige Kanal-Legende statt des reinen Namens.
+        if (widget.type != WidgetType.OSZ) c.drawText(widget.name, left, top + pLabel.textSize, pLabel)
+        if (widget.type == WidgetType.GAU || widget.type == WidgetType.BAR || widget.type == WidgetType.OSZ) {
             val range = "${fmt(widget.min)}…${fmt(widget.max)}"
             c.drawText(range, card.right - dp(10f) - pLabel.measureText(range), top + pLabel.textSize, pLabel)
         }
@@ -125,7 +143,43 @@ class DashWidgetView(context: Context, val widget: Widget) : View(context) {
             WidgetType.BAR -> drawBar(c, card)
             WidgetType.TXT -> drawText(c, card)
             WidgetType.LED -> drawLed(c, card)
+            WidgetType.OSZ -> drawOsz(c, card)
         }
+    }
+
+    /** Oszilloskop: Gitter + je Kanal eine farbige Kurve, oben eine Legende. */
+    private fun drawOsz(c: Canvas, card: RectF) {
+        val x0 = card.left + dp(10f); val x1 = card.right - dp(10f)
+        val y0 = card.top + dp(30f); val y1 = card.bottom - dp(10f)
+        // Gitter
+        val grid = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = TRACK; strokeWidth = dp(1f) }
+        for (i in 0..4) { val gy = y0 + (y1 - y0) * i / 4f; c.drawLine(x0, gy, x1, gy, grid) }
+
+        val lo = widget.min.toFloat(); val hi = widget.max.toFloat()
+        val span = if (hi > lo) hi - lo else 1f
+        var legendX = x0
+        val baseline = card.top + dp(8f) + pLabel.textSize
+        widget.channels().forEachIndexed { ci, ch ->
+            val col = CH_COLORS[ci % CH_COLORS.size]
+            pLabel.color = col
+            c.drawText(ch, legendX, baseline, pLabel)
+            legendX += pLabel.measureText(ch) + dp(12f)
+            val h = oszHist[ch.uppercase()]
+            if (h != null && h.size >= 2) {
+                val line = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = col; style = Paint.Style.STROKE; strokeWidth = dp(1.6f); strokeCap = Paint.Cap.ROUND
+                }
+                val n = h.size; var px = 0f; var py = 0f
+                h.forEachIndexed { i, v ->
+                    val fx = x0 + (x1 - x0) * (i.toFloat() / (n - 1))
+                    val norm = ((v - lo) / span).coerceIn(0f, 1f)
+                    val fy = y1 - (y1 - y0) * norm
+                    if (i > 0) c.drawLine(px, py, fx, fy, line)
+                    px = fx; py = fy
+                }
+            }
+        }
+        pLabel.color = LABEL
     }
 
     private fun drawGauge(c: Canvas, card: RectF) {
@@ -209,6 +263,7 @@ class DashWidgetView(context: Context, val widget: Widget) : View(context) {
 
     companion object {
         private const val MAX_HIST = 48
+        private const val OSZ_HIST = 120
         private val ON_WORDS = setOf("on", "an", "ein", "true", "high", "1", "yes", "ja")
         private val CARD = 0xFF1B2029.toInt()
         private val TRACK = 0xFF2A3340.toInt()
@@ -216,5 +271,10 @@ class DashWidgetView(context: Context, val widget: Widget) : View(context) {
         private val LABEL = 0xFF8A93A2.toInt()
         private val VALUE = 0xFFE6E9EF.toInt()
         private val SPARK = 0xFF5A8DEE.toInt()
+        // Kanalfarben fürs Oszilloskop.
+        private val CH_COLORS = intArrayOf(
+            0xFF2ECC71.toInt(), 0xFF5A8DEE.toInt(), 0xFFE67E22.toInt(),
+            0xFFE74C3C.toInt(), 0xFF9B59B6.toInt(), 0xFF1ABC9C.toInt(),
+        )
     }
 }

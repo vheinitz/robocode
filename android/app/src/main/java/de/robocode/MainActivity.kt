@@ -77,7 +77,14 @@ class MainActivity : AppCompatActivity() {
     private lateinit var dashBox: LinearLayout
     private lateinit var btnDashAdd: Button
     private lateinit var btnDashToggle: Button
+    private lateinit var btnDashFull: Button
     private lateinit var terminalOutRow: View
+    // Vollbild-Tafel: Titel-/Nav-/Terminal-Leiste ausblenden.
+    private lateinit var titleBar: View
+    private lateinit var navBar: View
+    private lateinit var terminalToolbar: View
+    private var dashFull = false
+    private var dashExitBtn: View? = null
 
     private lateinit var panelCode: View
     private lateinit var panelBoard: View
@@ -168,7 +175,11 @@ class MainActivity : AppCompatActivity() {
         dashBox = findViewById(R.id.dashBox)
         btnDashAdd = findViewById(R.id.btnDashAdd)
         btnDashToggle = findViewById(R.id.btnDashToggle)
+        btnDashFull = findViewById(R.id.btnDashFull)
         terminalOutRow = findViewById(R.id.terminalOutRow)
+        titleBar = findViewById(R.id.titleBar)
+        navBar = findViewById(R.id.navBar)
+        terminalToolbar = findViewById(R.id.terminalToolbar)
         panelCode = findViewById(R.id.panelCode)
         panelBoard = findViewById(R.id.panelBoard)
         panelDevice = findViewById(R.id.panelDevice)
@@ -214,6 +225,7 @@ class MainActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.edDelLine).setOnClickListener { edDeleteLine() }
         findViewById<TextView>(R.id.edUp).setOnClickListener { edLineMove(-1) }
         findViewById<TextView>(R.id.edDown).setOnClickListener { edLineMove(1) }
+        findViewById<TextView>(R.id.edClear).setOnClickListener { confirmClearEditor() }
 
         // Projekt-Menü (Titelzeile)
         findViewById<TextView>(R.id.btnProject).setOnClickListener { saveCurrentProject(); showProjectDialog() }
@@ -254,6 +266,7 @@ class MainActivity : AppCompatActivity() {
         // Tafel (Roadmap 1): Modus umschalten + Widget anlegen.
         btnDashToggle.setOnClickListener { setDashMode(!dashMode) }
         btnDashAdd.setOnClickListener { showWidgetDialog(null) }
+        btnDashFull.setOnClickListener { setDashFullscreen(true) }
 
         editor.addTextChangedListener(object : TextWatcher {
             override fun afterTextChanged(s: Editable?) { if (!suppressWatcher) tabs[active] = s?.toString() ?: "" }
@@ -782,6 +795,7 @@ class MainActivity : AppCompatActivity() {
         }
         // Flashen: Steuerleitungen anlegen (Board im Download-Modus).
         if (!usb.open(driver, 115200, assertControlLines = true)) { log("Port öffnen fehlgeschlagen."); return }
+        var flashedOk = false
         try {
             runOnUiThread { setStatus("● flashe…", GRAY); showFlashDialog() }
             log("Synchronisiere mit ROM-Bootloader…")
@@ -796,7 +810,8 @@ class MainActivity : AppCompatActivity() {
             log("Flashe ${board.name} (${img.size} Byte)…")
             val ok = loader.flash(img, board.flashOffset, listener)
             if (ok) {
-                log("✓ MicroPython installiert. Prüfe erneut…")
+                flashedOk = true
+                log("✓ MicroPython installiert.")
                 runOnUiThread { setStatus("● installiert", ORANGE) }
             } else log("✗ Flashen fehlgeschlagen.")
         } catch (e: Exception) {
@@ -805,9 +820,32 @@ class MainActivity : AppCompatActivity() {
             usb.close()
             runOnUiThread { dismissFlashDialog() }
         }
-        // Nach dem Reboot neu erkennen (Gerät re-enumeriert; kurz warten).
-        try { Thread.sleep(1500) } catch (_: InterruptedException) {}
-        autoConnect()
+        if (flashedOk) {
+            // Der C3/S3 re-enumeriert nach dem Flashen über das native USB. Ein
+            // Software-Reboot aus dem Download-Modus ist dabei unzuverlässig —
+            // deshalb zum sauberen Neustart durch kurzes Neustecken/RST bitten.
+            // (Das Wiederanstecken löst über den USB-Empfänger autoConnect aus.)
+            runOnUiThread { showResetHint() }
+        } else {
+            try { Thread.sleep(1500) } catch (_: InterruptedException) {}
+            autoConnect()
+        }
+    }
+
+    /** Nach dem Flashen: zum Neustart ins MicroPython bitten (natives USB
+     *  re-enumeriert; Software-Reboot aus dem Download-Modus ist unzuverlässig). */
+    private fun showResetHint() {
+        AlertDialog.Builder(this)
+            .setTitle("MicroPython installiert ✓")
+            .setMessage(
+                "Damit der ESP32 jetzt MicroPython startet:\n\n" +
+                    "• ESP32 kurz vom Handy trennen und wieder anstecken\n" +
+                    "  (oder die RST/EN-Taste am Board drücken).\n\n" +
+                    "Beim Wiederanstecken prüft die App automatisch — oder tippe auf „Prüfen“.",
+            )
+            .setPositiveButton("Prüfen") { _, _ -> autoConnect() }
+            .setNegativeButton("Schließen", null)
+            .show()
     }
 
     /** Nicht abbrechbarer Hinweis während des Flashens: alle anderen Bedienelemente
@@ -940,10 +978,11 @@ class MainActivity : AppCompatActivity() {
 
     private fun dispatchLine(line: String) {
         for (m in pairRe.findAll(line)) {
-            val views = dashViews[m.groupValues[1].uppercase()] ?: continue
+            val name = m.groupValues[1]
+            val views = dashViews[name.uppercase()] ?: continue
             val raw = m.groupValues[2]
             val num = raw.toDoubleOrNull()
-            for (v in views) v.feed(raw, num)
+            for (v in views) v.feed(name, raw, num)
         }
     }
 
@@ -958,18 +997,65 @@ class MainActivity : AppCompatActivity() {
         if (dashboard.isEmpty()) { dashboard = seedDashboard(); rebuildDashViews() }
         for ((key, views) in dashViews) {
             val sample = when (key) { "TEMP" -> "27"; "DIST" -> "63"; "LED" -> "1"; else -> "42" }
-            for (v in views) { for (x in listOf("5", "40", sample)) v.feed(x, x.toDoubleOrNull()) }
+            for (v in views) { for (x in listOf("5", "40", sample)) v.feed(key, x, x.toDoubleOrNull()) }
         }
     }
 
     /** Tafel ⇄ Text umschalten (gleicher Datenstrom, andere Darstellung). */
     private fun setDashMode(on: Boolean) {
         dashMode = on
+        if (!on && dashFull) setDashFullscreen(false)   // Vollbild gehört zur Tafel
         terminalInScroll.visibility = if (on) View.GONE else View.VISIBLE
         terminalOutRow.visibility = if (on) View.GONE else View.VISIBLE
         dashScroll.visibility = if (on) View.VISIBLE else View.GONE
         btnDashAdd.visibility = if (on) View.VISIBLE else View.GONE
+        btnDashFull.visibility = if (on) View.VISIBLE else View.GONE
         btnDashToggle.text = if (on) "Text" else "Tafel"
+    }
+
+    /** Tafel im Vollbild: Titel-, Nav- und Terminal-Leiste ausblenden, nur die
+     *  Widgets zeigen; ein schwebender Knopf kehrt zurück. */
+    private fun setDashFullscreen(on: Boolean) {
+        dashFull = on
+        titleBar.visibility = if (on) View.GONE else View.VISIBLE
+        navBar.visibility = if (on) View.GONE else View.VISIBLE
+        terminalToolbar.visibility = if (on) View.GONE else View.VISIBLE
+        if (on) {
+            val content = findViewById<android.widget.FrameLayout>(android.R.id.content)
+            dashExitBtn?.let { content.removeView(it) }
+            val btn = TextView(this).apply {
+                text = "⛶ zurück"; textSize = 13f; setTextColor(0xFFFFFFFF.toInt())
+                setPadding(dp(14), dp(8), dp(14), dp(8))
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = dp(18).toFloat(); setColor(0xCC000000.toInt())
+                }
+                isClickable = true
+                setOnClickListener { setDashFullscreen(false) }
+            }
+            val lp = android.widget.FrameLayout.LayoutParams(
+                android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
+                android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
+            ).apply { gravity = android.view.Gravity.TOP or android.view.Gravity.END; topMargin = dp(10); rightMargin = dp(12) }
+            content.addView(btn, lp)
+            dashExitBtn = btn
+        } else {
+            dashExitBtn?.let { (it.parent as? android.view.ViewGroup)?.removeView(it) }
+            dashExitBtn = null
+        }
+    }
+
+    /** Editor-Inhalt des aktuellen Reiters ganz leeren (mit Rückfrage). */
+    private fun confirmClearEditor() {
+        AlertDialog.Builder(this)
+            .setTitle("Editor leeren?")
+            .setMessage("Der gesamte Code im aktuellen Reiter (${active.uppercase()}) wird gelöscht.")
+            .setPositiveButton("Leeren") { _, _ ->
+                suppressWatcher = true; editor.setText(""); suppressWatcher = false
+                tabs[active] = ""
+                saveCurrentProject()
+            }
+            .setNegativeButton("Abbrechen", null)
+            .show()
     }
 
     /** Tafel-Ansichten aus [dashboard] neu aufbauen und nach LOG-Namen indizieren. */
@@ -990,7 +1076,8 @@ class MainActivity : AppCompatActivity() {
                 setOnClickListener { showWidgetDialog(w) }
             }
             dashBox.addView(view)
-            dashViews.getOrPut(w.name.uppercase()) { mutableListOf() }.add(view)
+            // Oszilloskop hört auf mehrere Kanäle; andere Widgets auf einen Namen.
+            for (ch in w.channels()) dashViews.getOrPut(ch.uppercase()) { mutableListOf() }.add(view)
         }
     }
 
@@ -1006,8 +1093,8 @@ class MainActivity : AppCompatActivity() {
         }
         root.addView(typeSpinner)
 
-        root.addView(TextView(ctx).apply { text = "LOG-Name (z. B. DIST)"; textSize = 11f; setTextColor(GRAY); setPadding(0, dp(8), 0, 0) })
-        val nameEdit = EditText(ctx).apply { setText(existing?.name ?: ""); setSingleLine(true); hint = "DIST" }
+        root.addView(TextView(ctx).apply { text = "LOG-Name (z. B. DIST; Oszi: mehrere mit Komma)"; textSize = 11f; setTextColor(GRAY); setPadding(0, dp(8), 0, 0) })
+        val nameEdit = EditText(ctx).apply { setText(existing?.name ?: ""); setSingleLine(true); hint = "DIST  bzw.  ax,ay" }
         root.addView(nameEdit)
 
         val rangeRow = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, dp(8), 0, 0) }
@@ -1027,7 +1114,7 @@ class MainActivity : AppCompatActivity() {
 
         // Bereich nur für Zeiger/Balken sinnvoll.
         fun syncRange() {
-            val needs = typeSpinner.selectedItemPosition.let { WidgetType.entries[it] } in listOf(WidgetType.GAU, WidgetType.BAR)
+            val needs = typeSpinner.selectedItemPosition.let { WidgetType.entries[it] } in listOf(WidgetType.GAU, WidgetType.BAR, WidgetType.OSZ)
             rangeLabel.visibility = if (needs) View.VISIBLE else View.GONE
             rangeRow.visibility = if (needs) View.VISIBLE else View.GONE
         }
@@ -1165,6 +1252,14 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         aiCheckClipboard()     // KI-Antwort aus der Zwischenablage erkennen
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        // Zuverlässigster Moment zum Lesen der Zwischenablage (Android gibt den
+        // Zugriff erst mit dem Fensterfokus frei) — fängt auch den Fall ab, dass
+        // RoboCode im Hintergrund beendet wurde, während man in der KI-App war.
+        if (hasFocus) aiCheckClipboard()
     }
 
     override fun onDestroy() {
@@ -1509,8 +1604,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onBackPressed() {
-        // Aus dem Editor zurück → Startseite; von der Startseite → App verlassen.
-        if (launcherView == null) showLauncher() else super.onBackPressed()
+        when {
+            dashFull -> setDashFullscreen(false)              // erst Vollbild verlassen
+            launcherView == null -> showLauncher()            // Editor → Startseite
+            else -> super.onBackPressed()                     // Startseite → App verlassen
+        }
     }
 
     // ---------------- Programmieren mit KI (P1) ----------------
@@ -1529,6 +1627,24 @@ class MainActivity : AppCompatActivity() {
         val named = namedPins()
         if (named.isNotEmpty())
             sb.append("- Eigene Namen: ${named.joinToString(", ") { "${it.name} (GPIO ${it.gpio})" }}\n")
+        // Eingebaute Bauteile (board-abhängig): led nutzt den .v-Setter, b1 ist ein Taster.
+        val board = selectedBoard()
+        val extras = mutableListOf<String>()
+        if (board.builtinLedPin != null) extras.add("led = eingebaute LED (led.v = 1 an / led.v = 0 aus)")
+        if (board.bootPin != null) extras.add("b1 = BOOT-Taste (if b1: … wenn gedrückt)")
+        if (extras.isNotEmpty()) sb.append("- Eingebaute Bauteile: ${extras.joinToString("; ")}\n")
+        // Vorhandene Tafel-Anzeigen: die KI soll die passenden Werte per
+        // log("NAME:" + str(wert)) senden (Oszilloskop hat mehrere Kanäle).
+        if (dashboard.isNotEmpty()) {
+            sb.append("- Tafel-Anzeigen (per log(\"NAME:\" + str(wert)) speisen): ")
+            sb.append(dashboard.joinToString("; ") { w ->
+                val range = if (w.type == WidgetType.GAU || w.type == WidgetType.BAR || w.type == WidgetType.OSZ)
+                    " ${w.min.toInt()}..${w.max.toInt()}" else ""
+                if (w.type == WidgetType.OSZ) "${w.name} (Oszilloskop, Kanäle$range)"
+                else "${w.name} (${w.type.label}$range)"
+            })
+            sb.append("\n")
+        }
         return sb.toString().trimEnd()
     }
 
@@ -1543,11 +1659,15 @@ class MainActivity : AppCompatActivity() {
     private fun aiShare() {
         saveCurrentProject()
         val id = AiAssist.newRequestId()
+        // aiCurrentProgram() liest den aktuellen MAIN-Stand (Teil des Kontexts),
+        // BEVOR wir ihn leeren.
         val prompt = AiAssist.buildPrompt(id, aiBoardContext(), aiCurrentProgram())
-        aiRequestId = id
-        aiSentPrompt = prompt
-        aiLastHandledClip = null
-        copyToClipboard("RoboCode-KI", prompt)   // Sicherheit: Kontext liegt schon in der Zwischenablage
+        aiRememberRequest(id, prompt)             // merkt die Anfrage auch über einen App-Neustart hinweg
+        copyToClipboard("RoboCode-KI", prompt)    // Sicherheit: Kontext liegt schon in der Zwischenablage
+        // MAIN leeren — die KI-Antwort ersetzt es beim Zurückkehren. Der alte
+        // Inhalt steckt bereits im gesendeten Kontext.
+        tabs["main"] = ""
+        if (active == "main") { suppressWatcher = true; editor.setText(""); suppressWatcher = false }
 
         val base = Intent(Intent.ACTION_SEND).apply { type = "text/plain"; putExtra(Intent.EXTRA_TEXT, prompt) }
         val aiTargets = aiAppIntents(prompt)
@@ -1584,6 +1704,27 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // Offene KI-Anfrage dauerhaft merken: MIUI kann RoboCode im Hintergrund
+    // beenden, während man in der KI-App ist. Nach dem Neustart muss die App
+    // trotzdem wissen, welche Anfrage-ID in der Zwischenablage zu erwarten ist.
+    private fun aiPrefs() = getSharedPreferences("robocode.ai", Context.MODE_PRIVATE)
+
+    private fun aiRememberRequest(id: String, prompt: String) {
+        aiRequestId = id; aiSentPrompt = prompt; aiLastHandledClip = null
+        aiPrefs().edit().putString("id", id).putString("prompt", prompt).apply()
+    }
+
+    private fun aiLoadRequest() {
+        if (aiRequestId != null) return
+        aiRequestId = aiPrefs().getString("id", null)
+        aiSentPrompt = aiPrefs().getString("prompt", null)
+    }
+
+    private fun aiClearStore() {
+        aiRequestId = null; aiSentPrompt = null; aiLastHandledClip = null
+        aiPrefs().edit().remove("id").remove("prompt").apply()
+    }
+
     private fun copyToClipboard(label: String, text: String) =
         (getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager)
             .setPrimaryClip(android.content.ClipData.newPlainText(label, text))
@@ -1608,6 +1749,7 @@ class MainActivity : AppCompatActivity() {
     /** Beim Zurückkehren: hat die Zwischenablage die Antwort zur offenen Anfrage?
      *  Wenn ja, ohne Dialog das Programm ersetzen und die Zwischenablage leeren. */
     private fun aiCheckClipboard() {
+        aiLoadRequest()                       // evtl. aus den Prefs (App war beendet)
         val id = aiRequestId ?: return
         val clip = readClipboard() ?: return
         if (clip == aiLastHandledClip) return
@@ -1616,7 +1758,7 @@ class MainActivity : AppCompatActivity() {
         clearClipboard()
         // Entschärfen: eine neue Aufgabe startet über einen erneuten Stern-Tipp.
         // So liest die App nicht bei jeder Rückkehr die Zwischenablage.
-        aiRequestId = null; aiSentPrompt = null; aiLastHandledClip = null
+        aiClearStore()
         toast("KI-Code übernommen ($id)")
     }
 
@@ -1624,6 +1766,7 @@ class MainActivity : AppCompatActivity() {
         tabs[tabKey] = code
         editorLoaded = false          // verhindert, dass switchTab den alten Inhalt zurückschreibt
         switchTab(tabKey)
+        hideLauncher()                // falls der KI-Code beim Kaltstart (App war beendet) ankommt
         showPanel(panelCode)
         saveCurrentProject()
     }

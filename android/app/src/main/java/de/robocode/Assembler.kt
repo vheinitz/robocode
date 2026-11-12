@@ -33,6 +33,8 @@ object Assembler {
             "",
             "# ----- Vordefinierte Pins für ${board.name} (versteckt) -----",
             board.predefinedPinLines(),
+            "",
+            board.aliasLines(),
             *(if (pins != null && pins.isNotEmpty()) arrayOf("", Boards.customPinLines(pins)) else emptyArray<String>()),
             "",
             section("SETUP (Geräte an Pins)", parts.setup, "# (noch keine Geräte)"),

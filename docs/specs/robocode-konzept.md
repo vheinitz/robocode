@@ -61,11 +61,16 @@ Ablauf:
    einem kopierbaren Python-Codeblock, dessen **allererste Zeile die Anfrage-ID**
    als Kommentar wiederholt (`# RC-ID: …`).
 4. Der Nutzer kopiert den Code und kehrt zu RoboCode zurück. Beim Zurückkehren
-   prüft RoboCode **ohne Dialog** die Zwischenablage: Enthält sie die Anfrage-ID,
-   ersetzt es sofort das Programm (MAIN) mit dem Code und **leert die
-   Zwischenablage**. Danach ist die Anfrage entschärft — die nächste Aufgabe
+   (Fensterfokus) prüft RoboCode **ohne Dialog** die Zwischenablage: Enthält sie
+   die Anfrage-ID, ersetzt es sofort das Programm (MAIN) mit dem Code und **leert
+   die Zwischenablage**. Danach ist die Anfrage entschärft — die nächste Aufgabe
    startet über einen erneuten Stern-Tipp (so wird nicht bei jeder Rückkehr zur
    App die Zwischenablage gelesen).
+
+Robust gegen App-Beendigung: Beim Stern-Tipp wird MAIN geleert (der alte Stand
+steckt im Kontext) und die offene Anfrage-ID **dauerhaft** gemerkt. Beendet das
+System RoboCode im Hintergrund, während man in der KI-App ist, erkennt die App
+die Antwort nach dem Neustart trotzdem an der gemerkten ID.
 
 Inhalt des Kontexts (Prompt):
 
@@ -75,7 +80,10 @@ Inhalt des Kontexts (Prompt):
   (Digitaleingang), `b.a0` (Analogeingang), `wait(ms)`, `log("NAME:" + str(wert))`
   für die Tafel. Dazu normales Python (Schleifen, Bedingungen, Funktionen).
 - Die **vorhandenen Board-Objekte des Projekts** (welche `b.do*/di*/a*` es gibt,
-  plus eigene Pin-Namen). Die KI soll **nur diese** nutzen und keine Pins anlegen.
+  eigene Pin-Namen, eingebaute Bauteile `led`/`b1`, siehe Abschnitt Eingebaute
+  Bauteile). Die KI soll **nur diese** nutzen und keine Pins anlegen.
+- Die **vorhandenen Tafel-Anzeigen** (Name, Typ, Bereich, beim Oszilloskop die
+  Kanäle), damit die KI die passenden `log("NAME:" + str(wert))`-Zeilen einbaut.
 - Optional das **aktuelle Programm**, um ein bestehendes zu erweitern.
 - Die Anfrage-ID erzeugt RoboCode; die KI wiederholt sie nur als erste Code-Zeile.
 
@@ -115,6 +123,20 @@ Das reicht, um dem Kind zu zeigen, was wo hängt, und ist die Grundlage für die
 „Make"-Board-Konfiguration im Kurs. Komponenten tragen symbolische Namen, über
 die sie im Programm angesprochen werden.
 
+### Eingebaute Bauteile (board-abhängige Aliase)
+
+Je Board stellt die DSL feste Aliase für die auf der Platine verbauten Teile
+bereit — immer vorhanden, ohne dass das Kind sie anlegt:
+
+- `led` — eingebaute LED (meist aktiv-low, Logik wird intern invertiert):
+  `led.v = 1` (an) / `led.v = 0` (aus).
+- `b1` — BOOT-Taste als Taster: `if b1: …`.
+- Die Reset/EN-Taste lässt sich nicht per GPIO lesen (kein `b2`).
+
+Konkret: C3/C3-OLED und (für die LED analog) der S3-Teil — LED an GPIO8, BOOT an
+GPIO9 (C3) bzw. GPIO0 (S3). Beim S3 ist die eingebaute LED eine RGB-LED (WS2812)
+und daher kein einfacher `led`-Ausgang.
+
 ## 6. Startseite / Project Launcher
 
 Die Startseite ist eine **Projektliste** statt direkt der Editor:
@@ -137,8 +159,15 @@ nicht Teil des Kerns.
 - **Layout im Projekt gespeichert** (pro Instrument: Position, Größe, Typ,
   Kanalname, Einstellungen), damit die Tafel bei jedem Start gleich aussieht. In
   Kotlin per Canvas zeichenbar.
-- **Instrumente:** Zahl, Zeiger (Gauge), Balken, LED, Oszilloskop/Verlauf. Baut
-  auf der bestehenden „Tafel" auf.
+- **Instrumente:** Zahl, Zeiger (Gauge), Balken, LED, Oszilloskop. Baut auf der
+  bestehenden „Tafel" auf. Zeiger/Balken/Oszilloskop haben einen Wertebereich
+  (min/max); Zeiger und Balken zeigen zusätzlich eine kurze Verlaufskurve.
+- **Oszilloskop (mehrkanalig).** Ein Widget zeichnet mehrere Kanäle über die Zeit
+  in ein gemeinsames Gitter, jeder Kanal in eigener Farbe mit Legende. Die Kanäle
+  stehen als mit Komma getrennte LOG-Namen im Namensfeld (z. B. `ax,ay`); gespeist
+  wird wie bei jedem Widget über `log("ax:" + str(wert))`.
+- **Vollbild.** In der Tafel-Ansicht blendet ein Knopf Titel-, Navigations- und
+  Terminal-Leiste aus und zeigt nur die Widgets; ein schwebender Knopf kehrt zurück.
 - **Visual Components Integration (Editor).** Eine Editor-Gruppe „Visual
   Components" listet die im Dashboard konfigurierten Komponenten; bei Auswahl fügt
   der Editor einen fertigen `publish(Name, wert)`-Aufruf an der Cursorposition

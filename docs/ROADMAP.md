@@ -21,6 +21,11 @@ Feature-Details: siehe [`specs/robocode-konzept.md`](specs/robocode-konzept.md).
 - [x] Zwischen Boards wählen (C3 SuperMini, S3 SuperMini, C3 SuperMini OLED)
 - [x] Board als Bild mit Pin-Controls ringsum; fürs Projekt klonen, Pins umbenennen/Rolle wählen
 - [x] Mit eigener Pin-Belegung programmieren, Symbole im Programm nutzen
+- [x] Eingebaute Bauteile als Aliase je Board: `led` (aktiv-low), `b1` (BOOT-Taste)
+
+### Android: ESP32 flashen & erkennen
+- [x] MicroPython aus der App flashen; Board automatisch erkennen (REPL, os.uname)
+- [x] Nach dem Flashen zum Neustart auffordern (C3/S3 re-enumeriert; Reset nötig)
 
 ### Tafel / Dashboard-Grundstein (über den LOG-Kanal)
 - [x] `log("NAME:wert")` → Widgets (Zeiger/Balken/Text/LED); unbekannte Namen bleiben
@@ -81,6 +86,8 @@ Feature-Details: siehe [`specs/robocode-konzept.md`](specs/robocode-konzept.md).
 ## Priorität 2 — Dashboard (optional)
 
 - [ ] Dashboard Designer: Edit-/Run-Modus, Instrumente platzieren & skalieren, Layout im Projekt
+- [x] Instrumente: Zahl, Zeiger, Balken, LED, **Oszilloskop (mehrkanalig)** — über den LOG-Kanal
+- [x] Tafel-Vollbild (Titel-/Nav-/Terminal-Leiste ausblenden, schwebender Zurück-Knopf)
 - [ ] Visual Components Integration: Editor-Gruppe fügt `publish(Name, wert)` ein (Quelle = Dashboard-Config)
 - [ ] Runtime-/Demo-Modus (Dashboard als Handy-Display; Demo-Modus ohne Board)
 

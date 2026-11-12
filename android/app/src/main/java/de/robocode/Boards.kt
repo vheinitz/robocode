@@ -58,7 +58,30 @@ data class Board(
     val pins: List<Pin>,
     val banks: Banks,
     val layout: Layout,
+    // Eingebaute Bauteile (board-abhängig): LED (meist aktiv-low) und BOOT-Taste.
+    // null = auf diesem Board nicht als einfaches do/di nutzbar.
+    val builtinLedPin: Int? = null,
+    val builtinLedInverted: Boolean = true,
+    val bootPin: Int? = null,
 ) {
+    /** Board-abhängige Aliase als vordefinierte Objekte: `led` (eingebaute LED,
+     *  oft aktiv-low), `b1` (BOOT-Taste). Reset/EN ist nicht per GPIO lesbar. */
+    fun aliasLines(): String {
+        val lines = mutableListOf("# ----- Eingebaute Bauteile (board-abhaengig, schon da) -----")
+        if (builtinLedPin != null) {
+            lines.add("#   led  = eingebaute LED  ->  led.v = 1  (an) / led.v = 0  (aus)")
+            lines.add("led = LED($builtinLedPin, inverted=${if (builtinLedInverted) "True" else "False"})")
+        } else {
+            lines.add("# eingebaute LED: hier RGB/WS2812 — kein einfacher Ausgang, deshalb kein 'led'")
+        }
+        if (bootPin != null) {
+            lines.add("#   b1   = BOOT-Taste      ->  if b1: ...  (gedrueckt = wahr)")
+            lines.add("b1 = BTN($bootPin)")
+        }
+        lines.add("# Reset/EN-Taste laesst sich nicht per GPIO lesen (daher kein b2).")
+        return lines.joinToString("\n")
+    }
+
     /** Vordefinierte Pin-Zeilen für die versteckte DSL: zuerst die Arduino-Bänke
      *  (DO0.., DI0.., A0.. — im Namensraum, bevor MAIN läuft), dann die direkten
      *  GPIO-Namen D<gpio> für Fortgeschrittene. */
@@ -107,6 +130,8 @@ object Boards {
                 left = listOf(Slot(gpio = 5), Slot(gpio = 6), Slot(gpio = 7), Slot(gpio = 8), Slot(gpio = 9), Slot(gpio = 10), Slot(gpio = 20), Slot(gpio = 21)),
                 right = listOf(Slot(power = "5V"), Slot(power = "GND"), Slot(power = "3V3"), Slot(gpio = 4), Slot(gpio = 3), Slot(gpio = 2), Slot(gpio = 1), Slot(gpio = 0)),
             ),
+            // C3 SuperMini: eingebaute LED an GPIO8 (aktiv-low), BOOT-Taste an GPIO9.
+            builtinLedPin = 8, builtinLedInverted = true, bootPin = 9,
         ),
         Board(
             // Nur die obere Ansicht (espboards.dev/esp32/esp32-s3-super-mini): die
@@ -126,6 +151,9 @@ object Boards {
                 left = listOf(Slot(gpio = 43), Slot(gpio = 44), Slot(gpio = 1), Slot(gpio = 2), Slot(gpio = 3), Slot(gpio = 4), Slot(gpio = 5), Slot(gpio = 6), Slot(gpio = 7)),
                 right = listOf(Slot(power = "5V"), Slot(power = "GND"), Slot(power = "3V3"), Slot(gpio = 13), Slot(gpio = 12), Slot(gpio = 11), Slot(gpio = 10), Slot(gpio = 9), Slot(gpio = 8)),
             ),
+            // S3 SuperMini: BOOT-Taste an GPIO0. Eingebaute LED ist RGB (WS2812) —
+            // kein einfacher Ausgang, daher kein 'led'-Alias.
+            builtinLedPin = null, bootPin = 0,
         ),
         Board(
             // Wie C3 SuperMini, aber mit onboard-OLED 0.42" (SSD1306, I²C auf
@@ -144,6 +172,8 @@ object Boards {
                 left = listOf(Slot(power = "5V"), Slot(power = "GND"), Slot(power = "3V3"), Slot(gpio = 20), Slot(gpio = 21), Slot(gpio = 2), Slot(gpio = 1), Slot(gpio = 0)),
                 right = listOf(Slot(gpio = 10), Slot(gpio = 9), Slot(gpio = 8), Slot(gpio = 7), Slot(gpio = 6), Slot(gpio = 5), Slot(gpio = 4), Slot(gpio = 3)),
             ),
+            // Wie C3 SuperMini: LED an GPIO8 (aktiv-low), BOOT an GPIO9.
+            builtinLedPin = 8, builtinLedInverted = true, bootPin = 9,
         ),
     )
 
