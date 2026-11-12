@@ -1231,10 +1231,14 @@ class MainActivity : AppCompatActivity() {
         ProjectStore.save(this, p); applyProject(p)
     }
 
-    private fun duplicateProject() {
+    /** Aktuelles Projekt als NEUES Projekt kopieren. Das Original bleibt
+     *  unverändert (wird nur gesichert, nicht umbenannt); die Kopie bekommt [newName]. */
+    private fun duplicateProject(newName: String) {
+        saveCurrentProject()                 // Original sichern, NICHT umbenennen
         val cur = snapshotProject()
         val copy = cur.copy(
-            id = ProjectStore.newId(), name = uniqueName("${cur.name} Kopie"),
+            id = ProjectStore.newId(),
+            name = uniqueName(newName.trim().ifBlank { "${cur.name} Kopie" }),
             pins = cur.pins?.map { it.copy() }?.toMutableList(),
             dashboard = cur.dashboard.map { it.copy() }.toMutableList(),
         )
@@ -1261,21 +1265,27 @@ class MainActivity : AppCompatActivity() {
         saveCurrentProject(); updateProjectTitle()
     }
 
-    /** Projekt-Menü: umbenennen, Neu, Kopieren, öffnen, löschen. */
+    /**
+     * Projekt-Menü. Klare, getrennte Aktionen (kein implizites Umbenennen mehr):
+     * Namensfeld + „Umbenennen" wirken NUR aufs aktuelle Projekt; „Speichern"
+     * sichert den aktuellen Stand; „Neu" legt ein neues Projekt an; „Kopieren"
+     * fragt den Namen der Kopie ab und lässt das Original unverändert; die Liste
+     * öffnet/löscht Projekte.
+     */
     private fun showProjectDialog() {
         val ctx = this
         projectsInfo = ProjectStore.list(this)
         val root = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(18), dp(12), dp(18), dp(4)) }
-        root.addView(TextView(ctx).apply { text = "Aktuelles Projekt"; textSize = 11f; setTextColor(GRAY) })
-        val nameEdit = EditText(ctx).apply { setText(currentName); setSingleLine(true) }
-        root.addView(nameEdit)
-
         val listBox = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
         val dialog = AlertDialog.Builder(ctx)
             .setView(ScrollView(ctx).apply { addView(root) })
             .setPositiveButton("Fertig", null).create()
 
-        fun applyName() = renameCurrent(nameEdit.text?.toString() ?: currentName)
+        val nameEdit = EditText(ctx).apply {
+            setText(currentName); setSingleLine(true)
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+
         fun refresh() {
             listBox.removeAllViews()
             for (info in projectsInfo) {
@@ -1287,7 +1297,7 @@ class MainActivity : AppCompatActivity() {
                         textSize = 14f; setPadding(dp(2), dp(8), dp(8), dp(8))
                         setTextColor(if (isCur) GREEN else ICON)
                         layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-                        setOnClickListener { applyName(); openProject(info.id); dialog.dismiss() }
+                        setOnClickListener { openProject(info.id); dialog.dismiss() }
                     })
                     addView(TextView(ctx).apply {
                         text = "✕"; textSize = 15f; setTextColor(GRAY); setPadding(dp(10), dp(8), dp(6), dp(8))
@@ -1297,23 +1307,51 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        // Namenszeile: Feld + eigene Umbenennen-Aktion (wirkt nur aufs aktuelle Projekt).
+        root.addView(TextView(ctx).apply { text = "Aktuelles Projekt"; textSize = 11f; setTextColor(GRAY) })
         root.addView(LinearLayout(ctx).apply {
-            orientation = LinearLayout.HORIZONTAL; setPadding(0, dp(8), 0, dp(8))
+            orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.CENTER_VERTICAL
+            addView(nameEdit)
             addView(Button(ctx).apply {
-                text = "+ Neu"; textSize = 12f
-                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-                setOnClickListener { applyName(); newProject(); dialog.dismiss() }
-            })
-            addView(Button(ctx).apply {
-                text = "Kopieren"; textSize = 12f
-                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-                setOnClickListener { applyName(); duplicateProject(); dialog.dismiss() }
+                text = "Umbenennen"; textSize = 12f
+                setOnClickListener {
+                    renameCurrent(nameEdit.text?.toString() ?: currentName)
+                    projectsInfo = ProjectStore.list(ctx); refresh(); toast("Umbenannt")
+                }
             })
         })
+
+        // Aktionszeile: Speichern · Neu · Kopieren.
+        root.addView(LinearLayout(ctx).apply {
+            orientation = LinearLayout.HORIZONTAL; setPadding(0, dp(8), 0, dp(8))
+            fun act(label: String, onClick: () -> Unit) = addView(Button(ctx).apply {
+                text = label; textSize = 12f
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                setOnClickListener { onClick() }
+            })
+            act("Speichern") { saveCurrentProject(); toast("Gespeichert") }
+            act("+ Neu") { newProject(); dialog.dismiss() }
+            act("Kopieren") { dialog.dismiss(); promptCopyName() }
+        })
+
         root.addView(TextView(ctx).apply { text = "Projekte"; textSize = 11f; setTextColor(GRAY); setPadding(0, dp(4), 0, 0) })
         root.addView(listBox)
         refresh()
         dialog.show()
+    }
+
+    /** Fragt den Namen der Kopie ab und dupliziert das aktuelle Projekt. */
+    private fun promptCopyName() {
+        val ctx = this
+        val input = EditText(ctx).apply {
+            setText("$currentName Kopie"); setSingleLine(true); setSelectAllOnFocus(true)
+        }
+        AlertDialog.Builder(ctx)
+            .setTitle("Projekt kopieren")
+            .setView(ScrollView(ctx).apply { addView(input); setPadding(dp(18), dp(8), dp(18), 0) })
+            .setPositiveButton("Kopieren") { _, _ -> duplicateProject(input.text?.toString() ?: "") }
+            .setNegativeButton("Abbrechen", null)
+            .show()
     }
 
     private fun confirmDelete(info: ProjectStore.Info, after: () -> Unit) {
