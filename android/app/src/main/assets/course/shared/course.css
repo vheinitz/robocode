@@ -1,0 +1,71 @@
+:root {
+  --bg: #12151b;
+  --card: #1b2029;
+  --card2: #232a35;
+  --fg: #e6e9ef;
+  --muted: #8a93a2;
+  --green: #2ecc71;
+  --blue: #5a8dee;
+  --orange: #e67e22;
+  --stroke: #2a3340;
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body {
+  margin: 0; padding: 0; background: var(--bg); color: var(--fg);
+  font-family: -apple-system, Roboto, "Segoe UI", sans-serif;
+  font-size: 16px; line-height: 1.5;
+}
+.wrap { max-width: 760px; margin: 0 auto; padding: 16px 16px 40px; }
+
+/* Kopfzeile */
+.top { display: flex; align-items: center; gap: 10px; padding: 6px 0 14px; }
+.top a.back { color: var(--blue); text-decoration: none; font-size: 15px; }
+.top h1 { font-size: 20px; margin: 0; flex: 1; }
+.kicker { color: var(--muted); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; }
+
+/* Lektions-Kacheln (Startseite) */
+.lessons { list-style: none; margin: 10px 0 0; padding: 0; }
+.lessons li { margin: 10px 0; }
+.lessons a {
+  display: flex; align-items: center; gap: 14px; text-decoration: none; color: var(--fg);
+  background: var(--card); border: 1px solid var(--stroke); border-radius: 14px; padding: 14px 16px;
+}
+.lessons .num {
+  flex: none; width: 34px; height: 34px; border-radius: 10px; background: var(--card2);
+  display: flex; align-items: center; justify-content: center; font-weight: 700; color: var(--blue);
+}
+.lessons .t { font-size: 17px; }
+.lessons .d { color: var(--muted); font-size: 13px; }
+
+/* Schritte */
+.step { background: var(--card); border: 1px solid var(--stroke); border-radius: 14px; padding: 14px 16px; margin: 14px 0; }
+.step h2 { font-size: 17px; margin: 0 0 6px; }
+.step .n { color: var(--blue); font-weight: 700; margin-right: 6px; }
+.hint { color: var(--muted); font-size: 14px; }
+.svg { display: block; margin: 10px auto; max-width: 100%; }
+
+/* Code */
+pre.code {
+  background: #0e1116; border: 1px solid var(--stroke); border-radius: 10px;
+  padding: 12px; overflow-x: auto; font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 13.5px; color: #c9d4e3; white-space: pre; margin: 10px 0;
+}
+
+/* Knöpfe */
+.btns { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+button.rc {
+  appearance: none; border: 0; border-radius: 10px; padding: 12px 16px; font-size: 15px;
+  font-weight: 600; color: #fff; background: var(--card2); cursor: pointer;
+}
+button.rc.green { background: var(--green); }
+button.rc.blue { background: var(--blue); }
+button.rc.ghost { background: transparent; border: 1px solid var(--stroke); color: var(--fg); }
+button.rc:active { filter: brightness(.9); }
+
+/* Seiten-Navigation */
+.nav { display: flex; justify-content: space-between; margin-top: 22px; gap: 10px; }
+.nav a {
+  flex: 1; text-align: center; text-decoration: none; color: var(--fg);
+  background: var(--card); border: 1px solid var(--stroke); border-radius: 12px; padding: 12px;
+}
+.nav a.disabled { opacity: .35; pointer-events: none; }

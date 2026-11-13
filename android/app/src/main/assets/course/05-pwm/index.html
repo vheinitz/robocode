@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>5 · PWM</title>
+<link rel="stylesheet" href="../shared/course.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <a class="back" href="../index.html">‹ Kurs</a>
+    <h1>5 · PWM</h1>
+  </div>
+
+  <div class="step">
+    <h2><span class="n">①</span>Worum geht es?</h2>
+    <p id="intro">Bisher war die LED nur an oder aus. Mit <b>PWM</b> wird sie stufenlos
+       heller oder dunkler. Dafür schreibst du statt 0 oder 1 eine Zahl von 0 bis 255
+       auf einen Ausgang: <b>b.do0 = 128</b> ist halbe Helligkeit.</p>
+    <div class="btns"><button class="rc ghost" data-speak="#intro">🔊 Vorlesen</button></div>
+  </div>
+
+  <div class="step">
+    <h2><span class="n">②</span>Board</h2>
+    <p>Die eingebaute LED kann nur an/aus. Für PWM nimm eine <b>eigene LED</b> an
+       Ausgang <b>D0 (GPIO5)</b> – LED mit Vorwiderstand (z. B. 220&nbsp;Ω) von D0 nach GND.
+       Mit „Make" bekommt dieser Pin den Namen <b>lampe</b>.</p>
+    <div class="btns">
+      <button class="rc green" data-make='[{"gpio":5,"name":"lampe","role":"DO"}]'>Make: D0 = lampe</button>
+      <button class="rc blue" data-open="board">Board ansehen</button>
+    </div>
+  </div>
+
+  <div class="step">
+    <h2><span class="n">③</span>Code</h2>
+    <p>Die LED wird langsam heller und wieder dunkler (Atmen):</p>
+<pre class="code" id="c1">h = 0
+schritt = 5
+while True:
+    b.do0 = h
+    h = h + schritt
+    if h >= 255 or h <= 0:
+        schritt = -schritt
+    wait(20)</pre>
+    <div class="btns">
+      <button class="rc green" data-code="#c1" data-tab="main">Code einfügen</button>
+      <button class="rc blue" data-open="code">Zum Editor</button>
+    </div>
+    <p class="hint">Hinweis: <b>b.do0</b> ist derselbe Pin wie <b>lampe</b> (D0/GPIO5).</p>
+  </div>
+
+  <div class="step">
+    <h2><span class="n">④</span>Experimentiere</h2>
+    <p class="hint">Mach <b>schritt</b> größer (z. B. 15) für schnelleres Atmen, oder
+       setze einen festen Wert wie <b>b.do0 = 40</b> für dauerhaft gedimmt.</p>
+  </div>
+
+  <div class="nav">
+    <a href="../04-tafel/index.html">‹ Zurück</a>
+    <a href="../06-analog/index.html">Weiter: Analog ›</a>
+  </div>
+</div>
+<script src="../shared/course.js"></script>
+</body>
+</html>

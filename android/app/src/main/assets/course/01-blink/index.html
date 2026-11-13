@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>1 · ESP32 &amp; LED</title>
+<link rel="stylesheet" href="../shared/course.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <a class="back" href="../index.html">‹ Kurs</a>
+    <h1>1 · ESP32 &amp; LED</h1>
+  </div>
+
+  <div class="step">
+    <h2><span class="n">①</span>Worum geht es?</h2>
+    <svg class="svg" width="200" height="110" viewBox="0 0 200 110" xmlns="http://www.w3.org/2000/svg">
+      <rect x="40" y="20" width="120" height="70" rx="8" fill="#1b2029" stroke="#2a3340"/>
+      <rect x="92" y="8" width="16" height="14" rx="2" fill="#232a35" stroke="#2a3340"/>
+      <circle id="led" cx="100" cy="55" r="12" fill="#2ecc71"/>
+      <text x="100" y="105" fill="#8a93a2" font-size="11" text-anchor="middle">eingebaute LED</text>
+    </svg>
+    <p id="intro">Auf dem ESP32 ist schon eine LED eingebaut. Sie heißt im Programm
+       <b>led</b>. Wir lassen sie blinken: an, warten, aus, warten – immer wieder.</p>
+    <div class="btns"><button class="rc ghost" data-speak="#intro">🔊 Vorlesen</button></div>
+  </div>
+
+  <div class="step">
+    <h2><span class="n">②</span>Board</h2>
+    <p class="hint">Für die eingebaute LED musst du nichts verkabeln und nichts
+       einstellen – <b>led</b> ist schon da.</p>
+  </div>
+
+  <div class="step">
+    <h2><span class="n">③</span>Code</h2>
+    <p>So blinkt die LED jede halbe Sekunde:</p>
+<pre class="code" id="c1">while True:
+    led.v = 1
+    wait(500)
+    led.v = 0
+    wait(500)</pre>
+    <div class="btns">
+      <button class="rc green" data-code="#c1" data-tab="main">Code einfügen</button>
+      <button class="rc blue" data-open="code">Zum Editor</button>
+    </div>
+    <p class="hint">Danach „Start" (▶) drücken, um das Programm auf den ESP32 zu
+       übertragen. Die LED blinkt.</p>
+  </div>
+
+  <div class="step">
+    <h2><span class="n">④</span>Experimentiere</h2>
+    <p class="hint">Ändere beide <b>wait(500)</b> auf <b>wait(100)</b> – die LED blinkt
+       viel schneller. Probiere auch <b>wait(1000)</b>.</p>
+  </div>
+
+  <div class="nav">
+    <a class="disabled">‹ Zurück</a>
+    <a href="../02-taster/index.html">Weiter: BOOT-Taste ›</a>
+  </div>
+</div>
+<script src="../shared/course.js"></script>
+</body>
+</html>

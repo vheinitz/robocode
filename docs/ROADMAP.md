@@ -59,16 +59,25 @@ Feature-Details: siehe [`specs/robocode-konzept.md`](specs/robocode-konzept.md).
 - [x] KI nutzt bestehende Board-Objekte, erfindet keine Pins
 
 ### Interaktiver Kurs (konzeptioneller Schwerpunkt)
-- [ ] Ansicht mit Doku zu ~15 geführten Projekten
-- [ ] Pro Schritt: Einführung (Bild/SVG-Animation, Text oder TTS) → Board-Konfiguration
-  (selbst in der Board-Ansicht oder per „Make") → Code-Beispiel (selbst schreiben oder
-  einfügen lassen) → Experimente (Kind ändert Timings/Parameter selbst)
-- [ ] Jeder Schritt ist lauffähig (kompiliert & tut sichtbar etwas); Pinout ans Board-Modell gebunden
+- [x] Kurs-Infrastruktur: WebView-Ansicht (lokale HTMLs) + JS↔Kotlin-Brücke
+  (`RoboCode`): „Make" → Board einrichten, „Einfügen" → Code in Reiter,
+  „Öffnen" → Panel wechseln, „Vorlesen" → TTS; schwebender Zurück-Knopf
+- [x] Pro Schritt: Einführung (Bild/SVG/Text/TTS) → Board-Konfiguration (selbst
+  oder „Make") → Code-Beispiel (selbst oder „Einfügen") → Experimente
+- [x] Jeder Schritt lauffähig (gültiger MicroPython-Code); Code rückgängig-fähig (↶)
+- [x] **Modul 1 — Grundlagen (6 Lektionen):** ESP32+LED (Blink) · BOOT-Taste ·
+  Logging · Tafel-Visualisierung · PWM · Analog-Eingänge (Skalierung/Kalibrierung)
 - [ ] Symbolische Komponenten: eine Komponente als Rechteck + Icon an die Pins andocken (ohne Schaltplan)
-- [ ] Projektreihe: Blink · Taster-Toggle · Poti→PWM · Piezo-Melodie · Servo 0/90/180 ·
-  DHT11→Handy · An/Aus-Menü · Reaktionsspiel · Zähler · Nachtlicht (Fotowiderstand) ·
-  HC-SR04 Abstand · Taster→Servo+Piezo · Fußgängerampel · Countdown ·
-  Finale: Futterstation (Servo + Taster + Portionszähler)
+- [ ] Modul 2 — Erste Bauteile: Reaktionsspiel · Servo-Schranke · RGB-LED ·
+  Fußgängerampel · Nachtlicht (LDR) · Zähler · Countdown · HC-SR04 Abstand\*
+- [ ] Modul 3 — Aktoren & Leistung: DC-Motor (Transistor/PWM) · H-Bridge ·
+  Relais („mächtige Lasten", smarte Lampe) · Schrittmotor 28BYJ-48\*
+- [ ] Modul 4 — Fundamente & Protokolle: Stromkreis-Grundlagen · I²C\* ·
+  UART\* · SPI\* · Wi-Fi/IoT\*
+- [ ] Modul 5 — Engineering: Zustandsautomaten & Ereignisse ·
+  Integrationsprojekt „Intelligenter Parkplatz"\*
+- (\* = braucht neue DSL-Klassen/Hardware: DHT11, HC-SR04, sichtbares RGB/Motoren/
+  Relais, I²C-Layer, Wi-Fi — bewusst später)
 
 ## Priorität 2 — Autarke Projekte / Geräte-Erkennung
 

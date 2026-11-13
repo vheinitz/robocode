@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>6 · Analog-Eingänge</title>
+<link rel="stylesheet" href="../shared/course.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <a class="back" href="../index.html">‹ Kurs</a>
+    <h1>6 · Analog</h1>
+  </div>
+
+  <div class="step">
+    <h2><span class="n">①</span>Worum geht es?</h2>
+    <p id="intro">Ein digitaler Eingang kennt nur an oder aus. Ein <b>analoger</b>
+       Eingang misst dazwischen – eine Spannung. Der ESP32 macht daraus eine Zahl
+       von 0 bis 255. Ein Poti oder ein Lichtsensor (LDR) liefert so viele Werte.</p>
+    <div class="btns"><button class="rc ghost" data-speak="#intro">🔊 Vorlesen</button></div>
+  </div>
+
+  <div class="step">
+    <h2><span class="n">②</span>Board</h2>
+    <p>Schließe ein Poti (oder einen LDR als Spannungsteiler) an <b>A0 (GPIO0)</b> an.
+       Mit „Make" heißt dieser Eingang dann <b>poti</b>.</p>
+    <div class="btns">
+      <button class="rc green" data-make='[{"gpio":0,"name":"poti","role":"A"}]'>Make: A0 = poti</button>
+      <button class="rc blue" data-open="board">Board ansehen</button>
+    </div>
+  </div>
+
+  <div class="step">
+    <h2><span class="n">③</span>Code: messen &amp; umrechnen</h2>
+    <p>Der ESP32 misst nicht gleich Grad oder Lux, sondern eine Zahl 0–255. Mit
+       <b>Skalieren</b> rechnen wir sie in etwas Verständliches um – hier 0–255 → 0–32:</p>
+<pre class="code" id="c1">while True:
+    wert = b.a0
+    log("Poti:", wert)
+    log("TEMP:" + str(round(wert / 255 * 32)))
+    wait(200)</pre>
+    <div class="btns">
+      <button class="rc green" data-code="#c1" data-tab="main">Code einfügen</button>
+      <button class="rc blue" data-open="code">Zum Editor</button>
+    </div>
+    <p class="hint"><b>b.a0</b> ist derselbe Eingang wie <b>poti</b> (A0/GPIO0).</p>
+  </div>
+
+  <div class="step">
+    <h2><span class="n">④</span>Anschauen &amp; Experimentieren</h2>
+    <p class="hint">Auf der <b>Tafel</b> zeigt der TEMP-Zeiger den umgerechneten Wert –
+       dreh am Poti. Ändere den Faktor <b>32</b> (z. B. in 100) und passe den
+       Widget-Bereich an. Das ist <b>Kalibrieren</b>: die Zahl an die Wirklichkeit
+       anpassen, z. B. mit einem echten Thermometer vergleichen.</p>
+    <div class="btns"><button class="rc blue" data-open="tafel">Tafel öffnen</button></div>
+  </div>
+
+  <div class="nav">
+    <a href="../05-pwm/index.html">‹ Zurück</a>
+    <a class="disabled">Fertig ✓</a>
+  </div>
+</div>
+<script src="../shared/course.js"></script>
+</body>
+</html>

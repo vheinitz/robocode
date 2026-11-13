@@ -287,10 +287,15 @@ class MainActivity : AppCompatActivity() {
 
         loadCurrentProject()   // lädt zuletzt genutztes Projekt; zeigt MAIN
         showPanel(panelCode)
-        intent?.getStringExtra("panel")?.let { pinnedPanel = it; showPanelByName(it) }
-        // Startseite: Projektliste statt direkt der Editor. Per Panel-Intent
-        // (z. B. für Screenshots) wird sie übersprungen.
-        if (pinnedPanel == null) showLauncher()
+        val panelExtra = intent?.getStringExtra("panel")
+        if (panelExtra == "course") {
+            showCourse()                               // Deep-Link direkt in den Kurs
+        } else {
+            panelExtra?.let { pinnedPanel = it; showPanelByName(it) }
+            // Startseite: Projektliste statt direkt der Editor. Per Panel-Intent
+            // (z. B. für Screenshots) wird sie übersprungen.
+            if (pinnedPanel == null) showLauncher()
+        }
 
         val filter = IntentFilter(actionUsbPermission).apply {
             addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED)
@@ -1299,6 +1304,7 @@ class MainActivity : AppCompatActivity() {
         terminalRunning = false
         if (usb.isOpen) usb.close()
         try { unregisterReceiver(usbReceiver) } catch (_: Exception) {}
+        try { tts?.shutdown() } catch (_: Exception) {}
     }
 
     // ---------------- Projektverwaltung (0.1) ----------------
@@ -1532,6 +1538,148 @@ class MainActivity : AppCompatActivity() {
         launcherView = null
     }
 
+    // ---------------- Interaktiver Kurs (P1) ----------------
+
+    // Vollflächiges WebView-Overlay für den Kurs (einmal erzeugt, nur aus-/eingeblendet).
+    private var courseView: android.webkit.WebView? = null
+    // Schwebender „zurück zum Kurs"-Knopf, wenn eine Lektion in die App gewechselt hat.
+    private var courseReturnBtn: View? = null
+    private var tts: android.speech.tts.TextToSpeech? = null
+
+    /** Kurs-Overlay zeigen (WebView lädt lokale HTMLs; Stand bleibt erhalten). */
+    private fun showCourse() {
+        saveCurrentProject()
+        val content = findViewById<android.widget.FrameLayout>(android.R.id.content)
+        courseReturnBtn?.let { (it.parent as? android.view.ViewGroup)?.removeView(it) }
+        courseReturnBtn = null
+        val wv = courseView ?: buildCourseView().also { courseView = it }
+        if (wv.parent == null) {
+            content.addView(
+                wv,
+                android.widget.FrameLayout.LayoutParams(
+                    android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                    android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                ),
+            )
+        }
+        wv.visibility = View.VISIBLE
+        wv.bringToFront()
+    }
+
+    private fun hideCourse() { courseView?.visibility = View.GONE }
+
+    private fun buildCourseView(): android.webkit.WebView =
+        android.webkit.WebView(this).apply {
+            setBackgroundColor(0xFF12151B.toInt())
+            isClickable = true
+            settings.javaScriptEnabled = true
+            settings.domStorageEnabled = true
+            webViewClient = android.webkit.WebViewClient()   // Navigation in der WebView halten
+            addJavascriptInterface(CourseBridge(), "RoboCode")
+            loadUrl("file:///android_asset/course/index.html")
+        }
+
+    /** Aus einer Lektion in die App wechseln und einen „↩ Kurs"-Knopf einblenden. */
+    private fun courseToApp(then: () -> Unit) {
+        hideCourse()
+        val content = findViewById<android.widget.FrameLayout>(android.R.id.content)
+        courseReturnBtn?.let { (it.parent as? android.view.ViewGroup)?.removeView(it) }
+        val btn = TextView(this).apply {
+            text = "↩ Kurs"; textSize = 13f; setTextColor(0xFFFFFFFF.toInt())
+            setPadding(dp(14), dp(8), dp(14), dp(8))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dp(18).toFloat(); setColor(0xCC000000.toInt())
+            }
+            isClickable = true
+            setOnClickListener { showCourse() }
+        }
+        content.addView(
+            btn,
+            android.widget.FrameLayout.LayoutParams(
+                android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
+                android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
+            ).apply {
+                gravity = android.view.Gravity.TOP or android.view.Gravity.END
+                topMargin = dp(10); rightMargin = dp(12)
+            },
+        )
+        courseReturnBtn = btn
+        then()
+    }
+
+    /** Code einer Lektion in einen Reiter legen (rückgängig-fähig). */
+    private fun applyLessonCode(tab: String, code: String) {
+        pushUndo(tabs[tab] ?: "", tab)
+        tabs[tab] = code
+        editorLoaded = false
+        switchTab(tab)
+        saveCurrentProject()
+    }
+
+    /** Board aus einer Lektion einrichten: [[{gpio,name,role}]] als JSON. */
+    private fun applyPinConfig(json: String) {
+        try {
+            val arr = org.json.JSONArray(json)
+            if (projectPins == null) projectPins = selectedBoard().defaultPins().toMutableList()
+            val pins = projectPins ?: return
+            for (i in 0 until arr.length()) {
+                val o = arr.getJSONObject(i)
+                val pd = pins.firstOrNull { it.gpio == o.getInt("gpio") } ?: continue
+                val name = o.optString("name", "")
+                if (name.isNotBlank() && Boards.isValidName(name)) pd.name = name
+                val roleStr = o.optString("role", "")
+                if (roleStr.isNotBlank()) {
+                    val role = runCatching { PinRole.valueOf(roleStr) }.getOrNull()
+                    if (role != null && (role != PinRole.A || pd.adc)) pd.role = role
+                }
+            }
+            buildBoardPanel(); saveCurrentProject()
+        } catch (e: Exception) { toast("Board-Konfiguration fehlerhaft") }
+    }
+
+    private fun ttsSpeak(text: String) {
+        val t = tts
+        if (t == null) {
+            tts = android.speech.tts.TextToSpeech(this) { status ->
+                if (status == android.speech.tts.TextToSpeech.SUCCESS) {
+                    tts?.language = java.util.Locale.GERMAN
+                    tts?.speak(text, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "rc")
+                }
+            }
+        } else {
+            t.speak(text, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "rc")
+        }
+    }
+
+    /** JS-Brücke für die Kurs-HTMLs (Objektname `RoboCode`). Läuft auf einem
+     *  Binder-Thread → jede UI-Aktion in runOnUiThread. */
+    inner class CourseBridge {
+        @android.webkit.JavascriptInterface
+        fun putCode(tab: String, code: String) = runOnUiThread {
+            val key = if (tab in listOf("setup", "main", "lib")) tab else "main"
+            applyLessonCode(key, code)
+            courseToApp { showPanel(panelCode) }
+        }
+
+        @android.webkit.JavascriptInterface
+        fun open(panel: String) = runOnUiThread { courseToApp { showPanelByName(panel) } }
+
+        @android.webkit.JavascriptInterface
+        fun make(configJson: String) = runOnUiThread { applyPinConfig(configJson); toast("Board eingerichtet") }
+
+        @android.webkit.JavascriptInterface
+        fun chooseBoard(id: String) = runOnUiThread { this@MainActivity.setBoard(id) }
+
+        @android.webkit.JavascriptInterface
+        fun speak(text: String) = runOnUiThread { ttsSpeak(text) }
+
+        @android.webkit.JavascriptInterface
+        fun stopSpeak() = runOnUiThread { tts?.stop() }
+
+        @android.webkit.JavascriptInterface
+        fun toastMsg(text: String) = runOnUiThread { toast(text) }
+    }
+
     private fun buildLauncherView(): View {
         val ctx = this
         projectsInfo = ProjectStore.list(this)
@@ -1554,6 +1702,10 @@ class MainActivity : AppCompatActivity() {
             textSize = 13f; setTextColor(GRAY); setPadding(0, dp(4), 0, dp(16))
         })
 
+        // Konzeptioneller Schwerpunkt: der interaktive Kurs.
+        col.addView(launcherButton("📘  Interaktiver Kurs", 0xFF5A8DEE.toInt()) {
+            hideLauncher(); showCourse()
+        })
         col.addView(launcherButton("+  Neues Projekt", GREEN) {
             newProject(); hideLauncher(); showPanel(panelCode)
         })
@@ -1638,6 +1790,8 @@ class MainActivity : AppCompatActivity() {
 
     override fun onBackPressed() {
         when {
+            courseView?.visibility == View.VISIBLE -> { hideCourse(); showLauncher() } // Kurs → Startseite
+            courseReturnBtn != null -> showCourse()           // aus dem Kurs in die App gewechselt → zurück
             dashFull -> setDashFullscreen(false)              // erst Vollbild verlassen
             launcherView == null -> showLauncher()            // Editor → Startseite
             else -> super.onBackPressed()                     // Startseite → App verlassen

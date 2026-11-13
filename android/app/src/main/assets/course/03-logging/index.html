@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>3 · Logging</title>
+<link rel="stylesheet" href="../shared/course.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <a class="back" href="../index.html">‹ Kurs</a>
+    <h1>3 · Logging</h1>
+  </div>
+
+  <div class="step">
+    <h2><span class="n">①</span>Worum geht es?</h2>
+    <p id="intro">Mit <b>log(...)</b> schickt das Programm Text und Zahlen zurück ans
+       Handy. So siehst du, was der ESP32 gerade macht – perfekt, um Fehler zu finden
+       und ein Programm zu verstehen.</p>
+    <div class="btns"><button class="rc ghost" data-speak="#intro">🔊 Vorlesen</button></div>
+  </div>
+
+  <div class="step">
+    <h2><span class="n">②</span>Code</h2>
+    <p>Dieses Programm zählt hoch und schickt den Zählerstand jede Sekunde:</p>
+<pre class="code" id="c1">n = 0
+while True:
+    log("Zähler:", n)
+    n = n + 1
+    wait(1000)</pre>
+    <div class="btns">
+      <button class="rc green" data-code="#c1" data-tab="main">Code einfügen</button>
+      <button class="rc blue" data-open="code">Zum Editor</button>
+    </div>
+  </div>
+
+  <div class="step">
+    <h2><span class="n">③</span>Anschauen</h2>
+    <p class="hint">Nach „Start" (▶) die Ausgabe im <b>Terminal</b> ansehen –
+       dort läuft der Zähler.</p>
+    <div class="btns"><button class="rc blue" data-open="terminal">Terminal öffnen</button></div>
+  </div>
+
+  <div class="step">
+    <h2><span class="n">④</span>Experimentiere</h2>
+    <p class="hint">Ändere den Text in <b>log("Zähler:", n)</b>, oder logge etwas
+       Eigenes dazu, z. B. <b>log("doppelt:", n * 2)</b>.</p>
+  </div>
+
+  <div class="nav">
+    <a href="../02-taster/index.html">‹ Zurück</a>
+    <a href="../04-tafel/index.html">Weiter: Tafel ›</a>
+  </div>
+</div>
+<script src="../shared/course.js"></script>
+</body>
+</html>

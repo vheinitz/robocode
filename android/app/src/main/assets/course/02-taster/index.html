@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>2 · BOOT-Taste</title>
+<link rel="stylesheet" href="../shared/course.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <a class="back" href="../index.html">‹ Kurs</a>
+    <h1>2 · BOOT-Taste</h1>
+  </div>
+
+  <div class="step">
+    <h2><span class="n">①</span>Worum geht es?</h2>
+    <p id="intro">Auf dem Board ist eine kleine Taste mit der Aufschrift <b>BOOT</b>.
+       Im Programm heißt sie <b>b1</b>. Damit lernt der ESP32, auf einen Tastendruck
+       zu reagieren – das ist ein <b>digitaler Eingang</b>: gedrückt oder nicht.</p>
+    <div class="btns"><button class="rc ghost" data-speak="#intro">🔊 Vorlesen</button></div>
+  </div>
+
+  <div class="step">
+    <h2><span class="n">②</span>Board</h2>
+    <p class="hint">Nichts zu verkabeln: die BOOT-Taste (<b>b1</b>) und die LED
+       (<b>led</b>) sind schon auf dem Board.</p>
+  </div>
+
+  <div class="step">
+    <h2><span class="n">③</span>Code</h2>
+    <p>Die LED leuchtet, solange du die BOOT-Taste gedrückt hältst:</p>
+<pre class="code" id="c1">while True:
+    led.v = b1
+    wait(20)</pre>
+    <div class="btns">
+      <button class="rc green" data-code="#c1" data-tab="main">Code einfügen</button>
+      <button class="rc blue" data-open="code">Zum Editor</button>
+    </div>
+  </div>
+
+  <div class="step">
+    <h2><span class="n">④</span>Experimentiere: Umschalten</h2>
+    <p>Jetzt soll ein Druck die LED <b>umschalten</b> (an → aus → an). Dafür merkt
+       sich das Programm den vorherigen Zustand:</p>
+<pre class="code" id="c2">zustand = 0
+vorher = 0
+while True:
+    jetzt = 1 if b1 else 0
+    if jetzt and not vorher:
+        zustand = 1 - zustand
+        led.v = zustand
+    vorher = jetzt
+    wait(20)</pre>
+    <div class="btns">
+      <button class="rc green" data-code="#c2" data-tab="main">Umschalt-Code einfügen</button>
+      <button class="rc blue" data-open="code">Zum Editor</button>
+    </div>
+  </div>
+
+  <div class="nav">
+    <a href="../01-blink/index.html">‹ Zurück</a>
+    <a href="../03-logging/index.html">Weiter: Logging ›</a>
+  </div>
+</div>
+<script src="../shared/course.js"></script>
+</body>
+</html>

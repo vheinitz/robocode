@@ -115,6 +115,28 @@ folgt der nächste. Das Pinout ist an das Board-Modell gebunden, nicht in die
 Lektion hartkodiert. Sinnvolle Trennung: Lern-Engine · Hardware-Nachschlagewerk ·
 Editor/Ausführung.
 
+### Umsetzung
+
+- **Ansicht:** ein vollflächiges **WebView**-Overlay lädt lokale HTML-Lektionen aus
+  `assets/course/` (`file:///android_asset/...`, keine INTERNET-Permission). Es wird
+  einmal erzeugt und nur aus-/eingeblendet, damit der Lektionsstand erhalten bleibt.
+  Einstieg über die Startseite („Interaktiver Kurs").
+- **Brücke:** eine `@JavascriptInterface`-Klasse (`RoboCode`) verbindet die
+  Lektion-HTMLs mit der App. Die Lektion-Knöpfe lösen App-Funktionen aus:
+  `make([{gpio,name,role}])` richtet die Board-Konfiguration ein (klont die Pins,
+  vergibt Namen/Rollen), `putCode(reiter, code)` legt Code in SETUP/MAIN/LIB
+  (rückgängig-fähig), `open(panel)` wechselt in Editor/Board/Terminal/Tafel,
+  `speak(text)` liest vor (TTS, deutsch). Ein schwebender „↩ Kurs"-Knopf führt
+  aus der App zur Lektion zurück (Stand bleibt erhalten).
+- **Autoring:** jede Lektion ist eine eigene HTML-Datei plus gemeinsame
+  `shared/course.css` und `shared/course.js` (verdrahtet Knöpfe über
+  `data-code`/`data-make`/`data-open`/`data-speak`). Ordnernamen nicht mit `_`
+  beginnen (werden sonst beim Verpacken ignoriert).
+- **Module:** Modul 1 (Grundlagen, 6 Lektionen) ist umgesetzt und läuft mit der
+  vorhandenen DSL. Spätere Module (externe Bauteile, Aktoren/Leistung,
+  Fundamente/Protokolle, Engineering + Integrationsprojekt) brauchen teils neue
+  DSL-Klassen (DHT11, HC-SR04 …) bzw. Hardware — Reihenfolge siehe ROADMAP.
+
 ## 5. Symbolische Komponenten
 
 Für Board-Konfiguration und Kurs: Eine Komponente wird **symbolisch** als
