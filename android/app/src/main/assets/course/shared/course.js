@@ -7,7 +7,6 @@
  *   data-code="#id"  [data-tab="main"]  -> Code aus <pre id> in den Reiter legen
  *   data-make='[{"gpio":0,"name":"poti","role":"A"}]' -> Board einrichten
  *   data-open="code|board|terminal|tafel" -> in die App wechseln
- *   data-speak="#id"  oder  data-text="..." -> vorlesen (TTS)
  */
 (function () {
   var B = window.RoboCode;
@@ -25,10 +24,6 @@
     open: function (name) {
       if (has("open")) B.open(name); else console.log("[RC.open]", name);
     },
-    speak: function (t) {
-      if (has("speak")) B.speak(t); else console.log("[RC.speak]", t);
-    },
-    stopSpeak: function () { if (has("stopSpeak")) B.stopSpeak(); },
     toast: function (t) { if (has("toastMsg")) B.toastMsg(t); else console.log("[RC.toast]", t); }
   };
 
@@ -50,12 +45,6 @@
     });
     document.querySelectorAll("[data-open]").forEach(function (el) {
       el.addEventListener("click", function () { RC.open(el.getAttribute("data-open")); });
-    });
-    document.querySelectorAll("[data-speak]").forEach(function (el) {
-      el.addEventListener("click", function () {
-        var sel = el.getAttribute("data-speak");
-        RC.speak(sel ? textOf(sel) : (el.getAttribute("data-text") || ""));
-      });
     });
   }
 

@@ -1304,7 +1304,6 @@ class MainActivity : AppCompatActivity() {
         terminalRunning = false
         if (usb.isOpen) usb.close()
         try { unregisterReceiver(usbReceiver) } catch (_: Exception) {}
-        try { tts?.shutdown() } catch (_: Exception) {}
     }
 
     // ---------------- Projektverwaltung (0.1) ----------------
@@ -1544,7 +1543,6 @@ class MainActivity : AppCompatActivity() {
     private var courseView: android.webkit.WebView? = null
     // Schwebender „zurück zum Kurs"-Knopf, wenn eine Lektion in die App gewechselt hat.
     private var courseReturnBtn: View? = null
-    private var tts: android.speech.tts.TextToSpeech? = null
 
     /** Kurs-Overlay zeigen (WebView lädt lokale HTMLs; Stand bleibt erhalten). */
     private fun showCourse() {
@@ -1637,20 +1635,6 @@ class MainActivity : AppCompatActivity() {
         } catch (e: Exception) { toast("Board-Konfiguration fehlerhaft") }
     }
 
-    private fun ttsSpeak(text: String) {
-        val t = tts
-        if (t == null) {
-            tts = android.speech.tts.TextToSpeech(this) { status ->
-                if (status == android.speech.tts.TextToSpeech.SUCCESS) {
-                    tts?.language = java.util.Locale.GERMAN
-                    tts?.speak(text, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "rc")
-                }
-            }
-        } else {
-            t.speak(text, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "rc")
-        }
-    }
-
     /** JS-Brücke für die Kurs-HTMLs (Objektname `RoboCode`). Läuft auf einem
      *  Binder-Thread → jede UI-Aktion in runOnUiThread. */
     inner class CourseBridge {
@@ -1669,12 +1653,6 @@ class MainActivity : AppCompatActivity() {
 
         @android.webkit.JavascriptInterface
         fun chooseBoard(id: String) = runOnUiThread { this@MainActivity.setBoard(id) }
-
-        @android.webkit.JavascriptInterface
-        fun speak(text: String) = runOnUiThread { ttsSpeak(text) }
-
-        @android.webkit.JavascriptInterface
-        fun stopSpeak() = runOnUiThread { tts?.stop() }
 
         @android.webkit.JavascriptInterface
         fun toastMsg(text: String) = runOnUiThread { toast(text) }

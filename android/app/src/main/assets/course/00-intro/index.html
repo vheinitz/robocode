@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>0 · Worum geht's?</title>
+<link rel="stylesheet" href="../shared/course.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <a class="back" href="../index.html">‹ Kurs</a>
+    <h1>0 · Worum geht's?</h1>
+  </div>
+
+  <div class="step">
+    <h2><span class="n">①</span>Der ESP32</h2>
+    <img class="svg" src="../img/esp32-c3.png" alt="ESP32-C3 SuperMini" style="max-width:260px;border-radius:12px">
+    <p>Der <b>ESP32</b> ist ein winziger, günstiger Computer – ein <b>Mikrocontroller</b>.
+       Er hat keinen Bildschirm und keine Tastatur, dafür viele kleine Anschlüsse. Einmal
+       programmiert, läuft dein Programm <b>allein</b> auf dem Chip, ganz ohne Handy oder PC.
+       Viele ESP32 können sogar <b>WLAN</b> und <b>Bluetooth</b>.</p>
+    <p class="hint">Wir benutzen das kleine Board <b>ESP32-C3 SuperMini</b>. Mehr brauchst
+       du zum Starten nicht: Handy, ein USB-Kabel (OTG) und diesen Chip.</p>
+  </div>
+
+  <div class="step">
+    <h2><span class="n">②</span>Pins – die Anschlüsse</h2>
+    <img class="svg" src="../img/esp32-c3-pinout.png" alt="ESP32-C3 Pinout" style="max-width:320px;border-radius:12px">
+    <p>Die kleinen Beinchen heißen <b>Pins</b> (GPIO = „General Purpose Input/Output").
+       Über sie redet der Chip mit der Außenwelt. Jeder Pin kann auf verschiedene Arten
+       benutzt werden:</p>
+    <ul class="hint">
+      <li><b>Digital-Ausgang</b> – an/aus schalten (LED, Relais): <code>b.do0 = 1</code></li>
+      <li><b>Digital-Eingang</b> – gedrückt/nicht (Taster): <code>if b.di0:</code></li>
+      <li><b>Analog-Eingang</b> – einen Wert messen (Poti, Licht): <code>x = b.a0</code></li>
+      <li><b>PWM</b> – stufenlos (Helligkeit, Tempo): <code>b.do0 = 128</code></li>
+    </ul>
+    <p class="hint">Wichtig: Der ESP32 arbeitet mit <b>3,3&nbsp;Volt</b>. Manche Bauteile
+       brauchen 5&nbsp;V – darauf achten wir später. Und: eine LED nie ohne
+       <b>Vorwiderstand</b> direkt an einen Pin.</p>
+  </div>
+
+  <div class="step">
+    <h2><span class="n">③</span>Python &amp; die RoboCode-Schreibweise</h2>
+    <p>Du schreibst <b>echtes Python</b> (genauer: MicroPython, das direkt auf dem ESP32
+       läuft) – nur in einer <b>kurzen, handy-freundlichen Schreibweise</b>. Das Board ist
+       schon als <b>b</b> vorhanden, dazu die eingebaute LED <b>led</b> und die BOOT-Taste
+       <b>b1</b>:</p>
+<pre class="code">led.v = 1            # eingebaute LED an
+b.do0 = 1            # Ausgang 0 an
+if b1:               # BOOT-Taste gedrückt?
+    log("gedrückt")
+wert = b.a0          # Analogwert lesen
+wait(500)            # 500 ms warten</pre>
+    <p class="hint">Alles normale Python ist erlaubt: Variablen, <code>while True:</code>,
+       <code>if / else</code>, <code>for</code>, eigene Funktionen mit <code>def</code>,
+       Rechnen. Mit <b>log(...)</b> schickst du Werte zurück aufs Handy.</p>
+  </div>
+
+  <div class="step">
+    <h2><span class="n">④</span>So läuft eine Lektion</h2>
+    <p>Jede Lektion hat die gleichen Schritte – und ist in <b>jedem</b> Schritt lauffähig:</p>
+    <ul class="hint">
+      <li><b>Einführung</b> – worum es geht (Text/Bild).</li>
+      <li><b>Board</b> – nichts zu tun, oder ein Knopf <b>„Make"</b> richtet die Pins ein.</li>
+      <li><b>Code</b> – selbst tippen, oder <b>„Einfügen"</b> legt das Beispiel in den Editor;
+          dann mit <b>Start ▶</b> auf den ESP32 übertragen.</li>
+      <li><b>Experimente</b> – Zahlen ändern und schauen, was passiert.</li>
+    </ul>
+    <p class="hint">Mit <b>„↩ Kurs"</b> kommst du jederzeit zur Lektion zurück, mit
+       <b>↶</b> machst du eingefügten Code rückgängig.</p>
+  </div>
+
+  <div class="step">
+    <h2><span class="n">⑤</span>Was du lernst — und wo die Grenzen sind</h2>
+    <p><b>Stärken dieses Kurses:</b></p>
+    <ul class="hint">
+      <li>Lernen durch <b>Ausprobieren an echter Hardware</b>, sofort sichtbares Ergebnis.</li>
+      <li>Niedrige Hürde: nur <b>Handy + Kabel + ESP32</b>, kein PC, kein Löten.</li>
+      <li><b>Echtes Python</b> statt Klötzchen – das nimmst du überallhin mit.</li>
+      <li>Vom Blinken bis zum eigenen kleinen Gerät (messen, anzeigen, reagieren).</li>
+    </ul>
+    <p><b>Grenzen (bewusst):</b></p>
+    <ul class="hint">
+      <li>Keine tiefe Elektronik-Theorie und kein Löt-Kurs – wir bleiben einfach und sicher
+          (nur <b>Kleinspannung</b>, kein 230&nbsp;V).</li>
+      <li>Nur die Bauteile, die RoboCode schon kennt. Komplexere Sensoren/Protokolle
+          kommen später oder brauchen mehr.</li>
+      <li>Kein kompletter Informatik-Kurs – der Fokus ist <b>Hardware verstehen und steuern</b>.</li>
+    </ul>
+  </div>
+
+  <div class="step">
+    <h2><span class="n">⑥</span>Und nach dem Kurs?</h2>
+    <p class="hint">Wenn dir Mikrocontroller, IoT und Python Spaß machen, geht es so weiter:</p>
+    <ul class="hint">
+      <li><b>Python am PC</b> – dieselbe Sprache, ohne die Kurzschreibweise. Editor z. B.
+          <i>Thonny</i>; Doku auf <i>python.org</i> und <i>micropython.org</i>.</li>
+      <li><b>Mehr Elektronik</b> – Spannung/Strom/Widerstand, Steckbrett, eigene Schaltungen.</li>
+      <li><b>IoT</b> – den ESP32 per WLAN ins Netz bringen, Werte senden/empfangen (z. B. MQTT).</li>
+      <li><b>Andere Sprachen/Boards</b> – Arduino (C++), Raspberry Pi – das Gelernte überträgt sich.</li>
+    </ul>
+    <p>Bereit? Dann geht's los mit der ersten blinkenden LED.</p>
+  </div>
+
+  <div class="nav">
+    <a class="disabled">‹ Zurück</a>
+    <a href="../01-blink/index.html">Weiter: ESP32 &amp; LED ›</a>
+  </div>
+</div>
+<script src="../shared/course.js"></script>
+</body>
+</html>
