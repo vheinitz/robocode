@@ -51,6 +51,18 @@ while True:
     <h2><span class="n">④</span>Experimentiere</h2>
     <p class="hint">Ändere die Formel <b>20 + n % 15</b>, damit der Zeiger anders
        ausschlägt. Oder sende einen zweiten Wert, z. B. <b>log("DIST:" + str(n % 100))</b>.</p>
+<pre class="code" id="c2">n = 0
+while True:
+    led.v = 1
+    log("LED:1")
+    log("TEMP:" + str(20 + n % 15))
+    log("DIST:" + str(n % 100))
+    wait(500)
+    led.v = 0
+    log("LED:0")
+    wait(500)
+    n = n + 1</pre>
+    <div class="btns"><button class="rc green" data-code="#c2" data-tab="main">Mit DIST einfügen</button></div>
   </div>
 
   <div class="nav">

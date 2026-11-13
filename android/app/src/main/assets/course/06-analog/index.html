@@ -52,7 +52,15 @@
        dreh am Poti. Ändere den Faktor <b>32</b> (z. B. in 100) und passe den
        Widget-Bereich an. Das ist <b>Kalibrieren</b>: die Zahl an die Wirklichkeit
        anpassen, z. B. mit einem echten Thermometer vergleichen.</p>
-    <div class="btns"><button class="rc blue" data-open="tafel">Tafel öffnen</button></div>
+<pre class="code" id="c2">while True:
+    wert = b.a0
+    log("Poti:", wert)
+    log("TEMP:" + str(round(wert / 255 * 100)))
+    wait(200)</pre>
+    <div class="btns">
+      <button class="rc green" data-code="#c2" data-tab="main">Faktor 100 einfügen</button>
+      <button class="rc blue" data-open="tafel">Tafel öffnen</button>
+    </div>
   </div>
 
   <div class="nav">

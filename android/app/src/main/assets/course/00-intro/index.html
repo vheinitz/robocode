@@ -25,6 +25,22 @@
   </div>
 
   <div class="step">
+    <h2>⚡ Einmalig: MicroPython aufspielen</h2>
+    <p>Damit der ESP32 unsere Python-Programme versteht, muss <b>einmal</b>
+       <b>MicroPython</b> darauf installiert werden. Das macht die App selbst:</p>
+    <ol class="hint">
+      <li>ESP32 per <b>USB-OTG</b> ans Handy stecken.</li>
+      <li>Reiter <b>Gerät</b> → <b>„MicroPython installieren"</b>. Die App sagt an,
+          falls du am Board kurz <b>BOOT</b> halten / <b>EN</b> drücken musst.</li>
+      <li><b>Wichtig – danach neu starten:</b> ESP32 einmal kurz abziehen und wieder
+          anstecken, oder die <b>RST/EN</b>-Taste drücken. Sonst sieht es so aus, als
+          wäre MicroPython noch gar nicht da.</li>
+    </ol>
+    <div class="btns"><button class="rc blue" data-open="device">Zum Gerät-Reiter</button></div>
+    <p class="hint">Nur <b>einmal</b> nötig – danach bleibt MicroPython auf dem ESP32.</p>
+  </div>
+
+  <div class="step">
     <h2><span class="n">②</span>Pins – die Anschlüsse</h2>
     <img class="svg" src="../img/esp32-c3-pinout.png" alt="ESP32-C3 Pinout" style="max-width:320px;border-radius:12px">
     <p>Die kleinen Beinchen heißen <b>Pins</b> (GPIO = „General Purpose Input/Output").

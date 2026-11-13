@@ -95,6 +95,8 @@ class MainActivity : AppCompatActivity() {
 
     // Läuft die Terminal-Leseschleife (Port bleibt offen, Programmausgabe wird gelesen)?
     @Volatile private var terminalRunning = false
+    // Start-Sequenz (erst stoppen, kurze Pause, dann neu starten) ist im Gange.
+    @Volatile private var starting = false
 
     // Roadmap 1: Tafel des aktuellen Projekts. dashViews bildet LOG-Namen (GROSS)
     // auf die gespeisten Widget-Ansichten ab; ein Name darf mehrere speisen.
@@ -893,12 +895,31 @@ class MainActivity : AppCompatActivity() {
 
     // ---------------- Start: zusammenbauen, übertragen, ausführen ----------------
 
+    /** Start = immer erst ein laufendes Programm stoppen, kurz Pause (Knopf inaktiv),
+     *  dann neu übertragen und starten. So lässt sich mit einem Knopf neu starten. */
     private fun onStartClicked() {
-        if (busy) { toast("Läuft bereits…"); return }
+        if (starting) return
         tabs[active] = editor.text?.toString() ?: ""
         val driver = usb.findDriver() ?: run { toast("Kein ESP32 erkannt"); return }
         if (!ensurePermission(driver.device)) return
-        runBusy { doStart(driver) }
+        starting = true
+        setStartEnabled(false)
+        thread(isDaemon = true) {
+            // 1) Laufendes Programm stoppen und auf Port-Freigabe warten.
+            if (terminalRunning || busy) {
+                terminalRunning = false
+                var waited = 0
+                while (busy && waited < 3000) { Thread.sleep(50); waited += 50 }
+            }
+            // 2) Kurze Pause — Knopf bleibt 2 s inaktiv.
+            Thread.sleep(2000)
+            // 3) Neu starten.
+            runOnUiThread {
+                starting = false
+                if (busy) { toast("Noch beschäftigt…"); setStartEnabled(true) }
+                else runBusy { doStart(driver) }
+            }
+        }
     }
 
     private fun doStart(driver: UsbSerialDriver) {
@@ -920,6 +941,8 @@ class MainActivity : AppCompatActivity() {
             log("Fehler: ${e.message}")
         } finally {
             usb.close()
+            // Knopf wieder freigeben (außer eine neue Start-Sequenz läuft schon).
+            runOnUiThread { if (!starting) setStartEnabled(true) }
         }
     }
 
@@ -933,6 +956,7 @@ class MainActivity : AppCompatActivity() {
     private fun runTerminalLoop() {
         terminalRunning = true
         runOnUiThread {
+            setStartEnabled(true)                 // läuft jetzt — Start erneut = Neustart
             setStatus("● läuft · ${selectedBoard().name}", GREEN)
             appendTerminal("— verbunden, Programm läuft —\n")
             if (pinnedPanel == null) showPanel(panelTerminal)

@@ -53,6 +53,15 @@ while True:
     <h2><span class="n">④</span>Experimentiere</h2>
     <p class="hint">Mach <b>schritt</b> größer (z. B. 15) für schnelleres Atmen, oder
        setze einen festen Wert wie <b>b.do0 = 40</b> für dauerhaft gedimmt.</p>
+<pre class="code" id="c2">h = 0
+schritt = 15
+while True:
+    b.do0 = h
+    h = h + schritt
+    if h >= 255 or h <= 0:
+        schritt = -schritt
+    wait(20)</pre>
+    <div class="btns"><button class="rc green" data-code="#c2" data-tab="main">Schnelleres Atmen einfügen</button></div>
   </div>
 
   <div class="nav">
